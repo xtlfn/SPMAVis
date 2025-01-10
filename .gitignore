@@ -1,0 +1,32 @@
+# Python 虚拟环境
+.venv/
+venv/
+env/
+
+# Python 缓存文件
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# 临时文件和系统文件
+.DS_Store
+Thumbs.db
+
+# IDE/编辑器配置文件
+.vscode/
+.idea/
+*.code-workspace
+
+# 日志文件
+*.log
+
+# Streamlit 运行生成的临时文件
+.streamlit/
+
+# 大型数据集或上传文件目录
+static/uploads/
