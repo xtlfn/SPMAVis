@@ -17,7 +17,7 @@ with st.sidebar:
                 temp_file.write(uploaded_file.getbuffer()) 
                 st.session_state["temp_file_upload_path"] = temp_file.name
 
-            # st.write(f"临时文件路径：{st.session_state['temp_file_upload_path']}")  # For Debugging
+            st.write(f"临时文件路径：{st.session_state['temp_file_upload_path']}")  # For Debugging
 
     # Parameters
     with st.expander("⚙️ Parameters", expanded=True):
@@ -42,3 +42,8 @@ with st.sidebar:
                 st.success("Run Successful!")
             except ValueError as e:
                 st.error(str(e))
+
+
+#main Page
+
+st.title("文件读取与表格展示")
