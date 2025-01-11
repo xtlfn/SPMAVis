@@ -1,14 +1,44 @@
 import streamlit as st
+import os
+import tempfile
+from algorithm_config import algorithms, generate_parameters_input, generate_spmf_command
 
-# 设置应用标题
-st.title("简单的 Streamlit WebApp")
 
-# 添加输入框和按钮
-name = st.text_input("请输入你的名字：")
-if st.button("提交"):
-    st.write(f"你好，{name}！欢迎使用 Streamlit 应用。")
-else:
-    st.write("请在上方输入框输入名字，然后点击“提交”。")
+# Side Bar
+with st.sidebar:
+    st.header('SPMAVis')
 
-# 显示示例图片
-st.image("static/image.png", caption="示例图片", use_column_width=True)
+    # Uploader
+    with st.expander("📁 File Input", expanded=True):
+        uploaded_file = st.file_uploader("Select File Input", type=["txt", "csv", "xml"], label_visibility="collapsed")
+
+        if uploaded_file is not None:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
+                temp_file.write(uploaded_file.getbuffer()) 
+                st.session_state["temp_file_upload_path"] = temp_file.name
+
+            # st.write(f"临时文件路径：{st.session_state['temp_file_upload_path']}")  # For Debugging
+
+    # Parameters
+    with st.expander("⚙️ Parameters", expanded=True):
+        selected_name = st.selectbox("Select Algorithm", list(algorithms.keys()))
+        algorithm_id = algorithms[selected_name]["id"]
+
+        parameters = generate_parameters_input(selected_name)
+
+        # see if file uploaded
+        if "temp_file_upload_path" in st.session_state:
+            uploaded_file = st.session_state["temp_file_upload_path"]  # 从 session_state
+        else:
+            st.warning("Please Upload a File")
+            uploaded_file = None
+
+        output_file = "output.txt"
+
+        if uploaded_file and st.button("Run"):
+            try:
+                command = generate_spmf_command(algorithm_id, uploaded_file, output_file, parameters)
+                os.system(command)
+                st.success("Run Successful!")
+            except ValueError as e:
+                st.error(str(e))
