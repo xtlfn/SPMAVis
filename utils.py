@@ -1,4 +1,6 @@
 import pandas as pd
+import streamlit as st
+import subprocess
 
 def load_data(file_path):
     try:
@@ -58,3 +60,17 @@ def load_output_data(file_path):
 
     except Exception as e:
         return f"Error reading file: {e}"
+    
+
+def run_spmf_command(command):
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        if result.returncode == 0:
+            st.success("Run Successful!")
+            st.write("Command Output:")
+            st.code(result.stdout)  # 结果输出到界面
+        else:
+            st.error(f"Error: {result.stderr}")
+            st.write(f"Command Failed with Return Code: {result.returncode}")
+    except Exception as e:
+        st.error(f"Exception occurred: {str(e)}")

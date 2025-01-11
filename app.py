@@ -1,9 +1,10 @@
 import streamlit as st
 import os
+import subprocess
 import tempfile
 import pandas as pd
 from algorithm_config import algorithms, generate_parameters_input, generate_spmf_command
-from utils import load_data, load_output_data
+from utils import load_data, load_output_data, run_spmf_command
 
 # 初始化 session_state
 if "file_info" not in st.session_state:
@@ -53,7 +54,7 @@ with st.sidebar:
             try:
                 # 生成命令并执行
                 command = generate_spmf_command(algorithm_id, uploaded_file, output_file, parameters)
-                os.system(command)
+                run_spmf_command(command)
                 st.success("Run Successful!")
 
             except ValueError as e:
