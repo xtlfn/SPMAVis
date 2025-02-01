@@ -1,76 +1,110 @@
 import pandas as pd
-import streamlit as st
 import subprocess
 
+# Load and process input
 def load_data(file_path):
     try:
         rows = []
-        possible_delimiters = ["\t", " ", ",", ";"]
-
-        # 尝试每个分隔符，手动解析每行，确保列数一致
         with open(file_path, "r") as f:
             lines = f.readlines()
-
-        # 统计最长的列数作为基准
-        max_columns = 0
-        for line in lines[:50]:  # 只处理前 50 行
-            for delim in possible_delimiters:
-                fields = line.strip().split(delim)
-                if len(fields) > max_columns:
-                    max_columns = len(fields)
-                    best_delim = delim
-
-        # 重新用最佳分隔符解析文件
-        for line in lines[:50]:
-            fields = line.strip().split(best_delim)
-            # 补齐列数不足的行
-            while len(fields) < max_columns:
-                fields.append("")  # 填充空字符串
-            rows.append(fields)
-
-        # 创建 DataFrame
-        df = pd.DataFrame(rows, columns=[f"Column {i+1}" for i in range(max_columns)])
-        return df
-
+        for line in lines:
+            tokens = line.strip().split()
+            pattern_columns = []
+            current = []
+            for token in tokens:
+                if token == "-1":
+                    if current:
+                        pattern_columns.append(" ".join(current))
+                        current = []
+                elif token == "-2":
+                    continue
+                else:
+                    current.append(token)
+            if current:
+                pattern_columns.append(" ".join(current))
+            rows.append(pattern_columns)
+        max_patterns = max((len(row) for row in rows), default=0)
+        data = {f"Pattern {i+1}": [row[i] if i < len(row) else None for row in rows] for i in range(max_patterns)}
+        return pd.DataFrame(data)
     except Exception as e:
         return f"Error reading file: {e}"
-    
 
+# load and process output
 def load_output_data(file_path):
     try:
         rows = []
         with open(file_path, "r") as f:
             lines = f.readlines()
-
         for line in lines:
-            fields = line.strip().split()  # 分割每一行数据
-            sup_index = [i for i, val in enumerate(fields) if "#SUP:" in val]  # 找到SUP的位置
-
-            if sup_index:
-                sup_position = sup_index[0]
-                sup_value = fields[sup_position + 1]  # 获取 #SUP: 后面的值
-                pattern = " ".join(fields[:sup_position])  # 提取 pattern
-                rows.append({"Pattern": pattern, "Support Count": int(sup_value)})
+            fields = line.strip().split()
+            if "#SUP:" in fields:
+                sup_index = fields.index("#SUP:")
+                support = int(fields[sup_index + 1])
+                pattern_fields = fields[:sup_index]
             else:
-                rows.append({"Pattern": " ".join(fields), "Support Count": None})
-
-        # 将行数据转换为 DataFrame
+                support = None
+                pattern_fields = fields
+            pattern_columns = []
+            current = []
+            for token in pattern_fields:
+                if token == "-1":
+                    if current:
+                        pattern_columns.append(current)
+                        current = []
+                elif token == "-2":
+                    continue
+                else:
+                    current.append(token)
+            if current:
+                pattern_columns.append(current)
+            row_dict = {}
+            if support is not None:
+                row_dict["Support Count"] = support
+            for i, pattern in enumerate(pattern_columns, start=1):
+                row_dict[f"Pattern {i}"] = " ".join(pattern)
+            rows.append(row_dict)
+        max_patterns = max((len([key for key in row if key.startswith("Pattern")]) for row in rows), default=0)
+        for row in rows:
+            for i in range(1, max_patterns + 1):
+                key = f"Pattern {i}"
+                if key not in row:
+                    row[key] = None
         df = pd.DataFrame(rows)
-        return df
-
+        columns_order = []
+        if "Support Count" in df.columns:
+            columns_order.append("Support Count")
+        pattern_cols = sorted([col for col in df.columns if col.startswith("Pattern ")],
+                              key=lambda x: int(x.split()[1]))
+        columns_order.extend(pattern_cols)
+        return df[columns_order]
     except Exception as e:
         return f"Error reading file: {e}"
-    
 
-def run_spmf_command(command):
+# Postprocessing function 1 : Add unique items
+def add_unique_items_column_from_df(df):
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        if result.returncode == 0:
-            st.success("Run Successful!")
-            st.write("Command Output:")
-            st.code(result.stdout)  # 结果输出到界面
+        pattern_cols = [col for col in df.columns if col.startswith("Pattern")]
+        if not pattern_cols:
+            df["Unique Items"] = 0
         else:
-            st.error(f"Error: {result.stderr}")
-            st.write(f"Command Failed with Return Code: {result.returncode}")
+            def compute_unique(row):
+                return len({token for col in pattern_cols 
+                            for token in (row[col].split() if pd.notnull(row[col]) and row[col].strip() else [])})
+            df["Unique Items"] = df.apply(compute_unique, axis=1)
+        if "Support Count" in df.columns:
+            pattern_sorted = sorted([col for col in df.columns if col.startswith("Pattern")],
+                                    key=lambda x: int(x.split()[1]))
+            other_cols = [col for col in df.columns if col not in ["Support Count", "Unique Items"] and not col.startswith("Pattern")]
+            new_order = ["Support Count", "Unique Items"] + pattern_sorted + other_cols
+        else:
+            pattern_sorted = sorted([col for col in df.columns if col.startswith("Pattern")],
+                                    key=lambda x: int(x.split()[1]))
+            other_cols = [col for col in df.columns if col not in ["Unique Items"] and not col.startswith("Pattern")]
+            new_order = ["Unique Items"] + pattern_sorted + other_cols
+        return df[new_order]
     except Exception as e:
-        st.error(f"Exception occurred: {str(e)}")
+        return f"Error processing DataFrame for unique items: {e}"
+
+# Run SPMF algorithm with Java
+def run_spmf_command(command):
+    subprocess.run(command, shell=True, capture_output=True, text=True)
