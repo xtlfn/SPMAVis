@@ -4,6 +4,8 @@ import tempfile
 import pandas as pd
 from algorithm_config import algorithms, generate_parameters_input, generate_spmf_command
 from utils import load_data, load_output_data, run_spmf_command, add_unique_items_column_from_df
+from file_converter import get_supported_formats, convert_file_to_spmf
+
 
 st.set_page_config(page_title="SPMAVis", layout="wide")
 
@@ -25,18 +27,29 @@ with st.sidebar:
     with col2:
         st.header('SPMAVis')
 
-    #File Upload
     with st.expander("📁 File Input", expanded=True):
-        uploaded_file = st.file_uploader("Select File Input", type=["txt", "csv", "xml"], label_visibility="collapsed")
-        if uploaded_file is not None:
+    # file input
+        raw_file = st.file_uploader("Select File Input", type=["txt", "csv"], label_visibility="collapsed")
+        if raw_file is not None:
+            format_list = get_supported_formats()
+            selected_format = st.selectbox("Select Format", format_list)
+            if st.button("Confirm"):
+                converted_obj = convert_file_to_spmf(raw_file, selected_format)
+                if converted_obj:
+                    st.session_state["converted_file"] = converted_obj
+                    st.success("File successfully converted to SPMF format!")
+                else:
+                    st.error("Conversion failed. Please check if content matches the chosen format.")
+
+        if "converted_file" in st.session_state and st.session_state["converted_file"] is not None:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
-                temp_file.write(uploaded_file.getbuffer())
+                temp_file.write(st.session_state["converted_file"].getbuffer())
                 input_file_path = temp_file.name
             output_file_path = input_file_path.replace(".txt", "_output.txt")
             st.session_state["file_info"]["input_file"] = input_file_path
             st.session_state["file_info"]["output_file"] = output_file_path
             input_data = load_data(input_file_path)
-            if isinstance(input_data, pd.DataFrame):
+            if hasattr(input_data, "shape"):
                 st.session_state["input_data"] = input_data
                 st.success("Input data loaded successfully!")
             else:
