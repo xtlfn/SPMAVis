@@ -1,10 +1,11 @@
 import streamlit as st
 
-# --- 系统默认可用数据，用于Chart等数据选择 ---
 DEFAULT_STATE = {
     "uploaded_file": None,
     "preprocessed_data": None,
-    "spmf_formatted_file": None,
+    "spmf_formatted_file": None,    # 保存SPMF格式 txt 文件路径
+    "spmf_dictionary": None,        # 保存Item Dictionary DataFrame
+    "spmf_formatted_data": None,   # 保存SPMF文件 -> DataFrame（可直接可视化）
     "spmf_output_data": None,
     "dashboard_windows": [],
 }

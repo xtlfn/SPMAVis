@@ -8,7 +8,7 @@ CHARTS = {
     },
     "chart_table": {
         "renderer": chart_table.render,
-        "data_sources": ["uploaded_file", "preprocessed_data"],
+        "data_sources": ["uploaded_file", "preprocessed_data", "spmf_formatted_data", "spmf_output_data"],
     }
 }
 

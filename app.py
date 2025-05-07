@@ -1,9 +1,7 @@
 import streamlit as st
-import os
-import tempfile
-import components.state_manager as state
 import components.sidebar.file_upload as file_upload
 import components.sidebar.chart_manager as chart_manager
+import components.sidebar.algorithm as algorithm
 import components.dashboard.dashboard_container as dashboard
 
 st.set_page_config(page_title="SPMAVis", layout="wide")
@@ -16,7 +14,7 @@ with st.sidebar:
         st.header('SPMAVis')
 
     file_upload.render_file_upload()
-
     chart_manager.render_window_manager()
+    algorithm.render_algorithm_panel()
 
 dashboard.render_dashboard()
