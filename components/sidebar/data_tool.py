@@ -2,13 +2,11 @@
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import components.state_manager as state
 
 def render_data_tool():
     with st.expander("🛠️ Data Tool", expanded=False):
 
-        # 限定数据源（内建 + 自定义）
         VALID_SOURCE_KEYS = [
             "uploaded_file", "preprocessed_data", "spmf_formatted_data", "spmf_output_data"
         ]
@@ -28,7 +26,6 @@ def render_data_tool():
 
         df = data.copy()
 
-        # ✅ 每个模块都有自己的 container 和 checkbox
         with st.container():
             use_column_filter = st.checkbox("Enable Column Filter", key="enable_col_filter")
             if use_column_filter:
@@ -66,11 +63,6 @@ def render_data_tool():
                     st.info("No numeric columns available for filtering.")
 
         with st.container():
-            use_null_filter = st.checkbox("Enable Null Value Removal", key="enable_nulls")
-            if use_null_filter:
-                df = df.dropna()
-
-        with st.container():
             use_sorting = st.checkbox("Enable Sorting", key="enable_sorting")
             if use_sorting:
                 sort_col = st.selectbox("Sort by Column", df.columns)
@@ -79,11 +71,6 @@ def render_data_tool():
                     df = df.sort_values(by=sort_col, ascending=(sort_dir == "Ascending"))
                 except:
                     st.warning("Sorting failed.")
-
-        with st.container():
-            use_dedup = st.checkbox("Enable Duplicate Removal", key="enable_dedupe")
-            if use_dedup:
-                df = df.drop_duplicates()
 
         with st.container():
             use_rename = st.checkbox("Enable Column Renaming", key="enable_rename")
@@ -124,8 +111,18 @@ def render_data_tool():
                 else:
                     st.info("No suitable column for datetime extraction.")
 
-        # ✅ Save Result
-        st.markdown("### ✅ Save Result")
+        with st.container():
+            use_dedup = st.checkbox("Enable Duplicate Removal", key="enable_dedupe")
+            if use_dedup:
+                df = df.drop_duplicates()
+
+        with st.container():
+            use_null_filter = st.checkbox("Enable Null Value Removal", key="enable_nulls")
+            if use_null_filter:
+                df = df.dropna()
+
+        #  Save Result
+        st.markdown("###  Save Result")
         save_as = st.text_input("Save as (Custom Name)", value="my_data")
 
         if st.button("Save Processed Data"):
