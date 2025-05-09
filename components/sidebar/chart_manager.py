@@ -16,8 +16,6 @@ def render_window_manager():
 
     with st.expander("📁 Chart Manager", expanded=False):
 
-        st.header("Window Manager")
-
         mode = st.selectbox("Mode", ["Add New Window", "Existing Windows"])
 
         if mode == "Add New Window":
@@ -30,9 +28,18 @@ def render_window_manager():
             width_label = st.selectbox("Window Width", list(WIDTH_OPTIONS.keys()))
             width_value = WIDTH_OPTIONS[width_label]
 
-            # 只从 chart_registry 允许的 sources 里选择
-            allowed_data_sources = chart_registry.get_chart_data_sources(chart_type)
-            data_key = st.selectbox("Select Data Source", allowed_data_sources)
+            allowed_sources = chart_registry.get_chart_data_sources(chart_type)
+            accepts_custom = chart_registry.chart_accepts_custom(chart_type)
+
+            data_keys = allowed_sources.copy()
+            if accepts_custom:
+                data_keys += state.get_custom_data_keys()
+
+            if not data_keys:
+                st.warning("No available data sources for this chart.")
+                return
+
+            data_key = st.selectbox("Select Data Source", data_keys)
 
             if st.button("Add Window"):
                 windows = state.get("dashboard_windows")

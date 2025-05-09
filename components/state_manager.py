@@ -42,3 +42,16 @@ def get_dynamic(key):
 
 def get_all_keys():
     return list(st.session_state.keys())
+
+
+
+CUSTOM_STATE_LIST_KEY = "_custom_data_keys"
+
+def get_custom_data_keys():
+    return st.session_state.get(CUSTOM_STATE_LIST_KEY, [])
+
+def add_custom_data_key(key):
+    if CUSTOM_STATE_LIST_KEY not in st.session_state:
+        st.session_state[CUSTOM_STATE_LIST_KEY] = []
+    if key not in st.session_state[CUSTOM_STATE_LIST_KEY]:
+        st.session_state[CUSTOM_STATE_LIST_KEY].append(key)

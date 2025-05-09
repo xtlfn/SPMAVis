@@ -44,7 +44,6 @@ def remove_pseudo_empty_rows(df, threshold=0.8):
 def render_file_upload():
 
     with st.expander("📁 File Upload", expanded=False):
-        st.header("Upload Raw Dataset")
 
         uploaded_file = st.file_uploader("Select File", type=["csv", "txt"])
 

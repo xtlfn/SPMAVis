@@ -3,6 +3,7 @@ import components.state_manager as state
 import components.sidebar.file_upload as file_upload
 import components.sidebar.chart_manager as chart_manager
 import components.sidebar.algorithm as algorithm
+import components.sidebar.data_tool as data_tool
 import components.dashboard.dashboard_container as dashboard
 
 st.set_page_config(page_title="SPMAVis", layout="wide")
@@ -18,5 +19,6 @@ with st.sidebar:
     file_upload.render_file_upload()
     chart_manager.render_window_manager()
     algorithm.render_algorithm_panel()
+    data_tool.render_data_tool()
 
 dashboard.render_dashboard()
