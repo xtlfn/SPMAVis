@@ -1,3 +1,5 @@
+# components/dashboard/chart_registry.py
+
 from components.dashboard import chart_custom, chart_table
 
 # 所有可用图表的注册表

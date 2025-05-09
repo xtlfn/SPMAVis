@@ -1,3 +1,5 @@
+# components/spmf/executor.py
+
 import subprocess
 import components.spmf.algorithm_registry as registry
 import components.state_manager as state

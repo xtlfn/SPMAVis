@@ -1,3 +1,5 @@
+# components/dashboard/chart_custom.py
+
 import streamlit as st
 
 def render(data=None):

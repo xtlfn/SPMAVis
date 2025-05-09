@@ -1,3 +1,5 @@
+# components/dashboard/dashboard_container.py
+
 import streamlit as st
 import components.state_manager as state
 import components.dashboard.chart_registry as chart_registry

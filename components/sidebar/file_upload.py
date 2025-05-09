@@ -1,3 +1,5 @@
+# components/sidebar/file_upload.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -40,7 +42,6 @@ def remove_pseudo_empty_rows(df, threshold=0.8):
     return df_cleaned
 
 def render_file_upload():
-    state.init_state()
 
     with st.expander("📁 File Upload", expanded=False):
         st.header("Upload Raw Dataset")

@@ -1,3 +1,5 @@
+# components/sidebar/algorithm.py
+
 import streamlit as st
 import os
 import components.state_manager as state

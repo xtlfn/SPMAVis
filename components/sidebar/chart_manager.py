@@ -1,3 +1,5 @@
+# components/sidebar/chart_manager.py
+
 import streamlit as st
 import components.state_manager as state
 import components.dashboard.chart_registry as chart_registry

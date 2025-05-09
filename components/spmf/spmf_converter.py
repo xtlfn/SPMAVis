@@ -1,3 +1,5 @@
+# components/spmf/spmf_converter.py
+
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -7,7 +9,11 @@ import components.state_manager as state
 BLOCK_SIZE = 100
 
 def parse_time(df):
-    df['date_and_time'] = pd.to_datetime(df['date_and_time'], errors='coerce')
+    df['date_and_time'] = pd.to_datetime(
+        df['date_and_time'],
+        format="%m/%d/%Y %I:%M:%S %p",  # 明确格式，避免警告
+        errors='coerce'
+    )
     df['dategroup'] = df['date_and_time'].dt.strftime('%Y%m%d')
     return df
 

@@ -1,3 +1,5 @@
+# components/dashbing/chart_table.py
+
 import streamlit as st
 import components.state_manager as state
 
