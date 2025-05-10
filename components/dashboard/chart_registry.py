@@ -1,6 +1,6 @@
 # components/dashboard/chart_registry.py
 
-from components.dashboard import chart_table, chart_bar
+from components.dashboard import chart_table, chart_bar, chart_map
 
 CHARTS = {
     "chart_bar": {
@@ -12,6 +12,12 @@ CHARTS = {
     "chart_table": {
         "renderer": chart_table.render,
         "fixed_sources": ["uploaded_file", "preprocessed_data", "spmf_formatted_data", "spmf_output_data"],
+        "accepts_custom_data": True
+    },
+    "chart_map": {
+        "renderer": chart_map.render,
+        "config_ui": chart_map.render_config_ui,
+        "fixed_sources": ["preprocessed_data"],
         "accepts_custom_data": True
     }
 }

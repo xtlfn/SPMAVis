@@ -22,7 +22,7 @@ def render_dashboard():
         data_key = window.get("data_key")
         settings = window.get("settings", {})
 
-        st.markdown(f"### {title}")
+        st.markdown(f"### {title} ({window['id']})")
 
         chart_renderer = chart_registry.get_chart_renderer(chart_type)
 

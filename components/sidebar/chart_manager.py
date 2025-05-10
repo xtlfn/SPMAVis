@@ -2,6 +2,7 @@
 
 import streamlit as st
 import pandas as pd
+import uuid
 import components.state_manager as state
 import components.dashboard.chart_registry as chart_registry
 
@@ -45,8 +46,9 @@ def render_window_manager():
             if st.button("Add Window"):
                 windows = state.get("dashboard_windows")
 
+                unique_id = f"{chart_type}_{uuid.uuid4().hex[:8]}"
                 new_window = {
-                    "id": f"{chart_type}_{len(windows)+1}",
+                    "id": unique_id,
                     "title": title,
                     "type": chart_type,
                     "width": width_value,
@@ -68,9 +70,10 @@ def render_window_manager():
                 for index, window in enumerate(windows):
                     with st.container():
                         col1, col2 = st.columns([3, 1])
+                        display_name = f"{window['title']} ({window['id']})"
 
                         with col1:
-                            st.write(f"📊 **{window['title']}** (Type: `{window['type']}`, Width: {window['width']}/12, Data: `{window['data_key']}`)")
+                            st.write(f"📊 **{display_name}** (Type: `{window['type']}`, Width: {window['width']}/12, Data: `{window['data_key']}`)")
 
                         with col2:
                             if st.button("Delete", key=f"delete_{window['id']}"):
@@ -86,10 +89,11 @@ def render_window_manager():
                 st.info("No charts to configure.")
                 return
 
-            window_ids = [win["id"] for win in windows]
-            selected_id = st.selectbox("Select Chart", window_ids)
-
+            display_names = [f"{w['title']} ({w['id']})" for w in windows]
+            selected_label = st.selectbox("Select Chart", display_names)
+            selected_id = selected_label.split("(")[-1].replace(")", "")
             target = next((w for w in windows if w["id"] == selected_id), None)
+
             if not target:
                 st.warning("Window not found.")
                 return
