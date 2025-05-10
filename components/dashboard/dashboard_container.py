@@ -20,13 +20,14 @@ def render_dashboard():
         title = window.get("title", "Untitled Window")
         chart_type = window.get("type")
         data_key = window.get("data_key")
+        settings = window.get("settings", {})
 
         st.markdown(f"### {title}")
 
         chart_renderer = chart_registry.get_chart_renderer(chart_type)
 
         if chart_renderer:
-            chart_renderer(data_key)
+            chart_renderer(data_key, settings)
         else:
             st.warning(f"Unknown chart type: {chart_type}")
 

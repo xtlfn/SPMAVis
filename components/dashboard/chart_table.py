@@ -3,7 +3,7 @@
 import streamlit as st
 import components.state_manager as state
 
-def render(data_key=None):
+def render(data_key=None, settings=None):
     if not data_key:
         st.info("No data source selected for this chart.")
         return

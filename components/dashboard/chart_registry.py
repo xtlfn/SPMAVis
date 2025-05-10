@@ -1,11 +1,12 @@
 # components/dashboard/chart_registry.py
 
-from components.dashboard import chart_custom, chart_table
+from components.dashboard import chart_table, chart_bar
 
 CHARTS = {
-    "chart_custom": {
-        "renderer": chart_custom.render,
-        "fixed_sources": [],
+    "chart_bar": {
+        "renderer": chart_bar.render,
+        "config_ui": chart_bar.render_config_ui,
+        "fixed_sources": ["uploaded_file", "preprocessed_data"],
         "accepts_custom_data": True
     },
     "chart_table": {
@@ -32,3 +33,6 @@ def get_all_data_sources():
     for chart in CHARTS.values():
         sources.update(chart.get("fixed_sources", []))
     return list(sources)
+
+def get_chart_config_ui(chart_type):
+    return CHARTS.get(chart_type, {}).get("config_ui", None)

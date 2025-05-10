@@ -1,7 +1,6 @@
 # components/sidebar/algorithm.py
 
 import streamlit as st
-import os
 import components.state_manager as state
 import components.spmf.algorithm_registry as registry
 import components.spmf.spmf_executor as executor

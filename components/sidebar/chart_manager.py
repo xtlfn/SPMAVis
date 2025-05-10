@@ -1,6 +1,7 @@
 # components/sidebar/chart_manager.py
 
 import streamlit as st
+import pandas as pd
 import components.state_manager as state
 import components.dashboard.chart_registry as chart_registry
 
@@ -16,7 +17,7 @@ def render_window_manager():
 
     with st.expander("📁 Chart Manager", expanded=False):
 
-        mode = st.selectbox("Mode", ["Add New Window", "Existing Windows"])
+        mode = st.selectbox("Mode", ["Add New Window", "Existing Windows", "Configure Chart"])
 
         if mode == "Add New Window":
             st.subheader("Add New Window")
@@ -76,3 +77,30 @@ def render_window_manager():
                                 windows.pop(index)
                                 state.set("dashboard_windows", windows)
                                 st.rerun()
+
+        elif mode == "Configure Chart":
+            st.subheader("Configure Chart Settings")
+
+            windows = state.get("dashboard_windows")
+            if not windows:
+                st.info("No charts to configure.")
+                return
+
+            window_ids = [win["id"] for win in windows]
+            selected_id = st.selectbox("Select Chart", window_ids)
+
+            target = next((w for w in windows if w["id"] == selected_id), None)
+            if not target:
+                st.warning("Window not found.")
+                return
+
+            df = state.get(target["data_key"])
+            if df is None or not isinstance(df, pd.DataFrame):
+                st.warning("No data for selected chart.")
+                return
+
+            config_ui = chart_registry.get_chart_config_ui(target["type"])
+            if config_ui:
+                config_ui(df, target)
+            else:
+                st.info("This chart has no configurable options.")
