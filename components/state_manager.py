@@ -1,6 +1,5 @@
 #components/state_manager.py
 
-
 import streamlit as st
 
 DEFAULT_STATE = {
@@ -8,8 +7,10 @@ DEFAULT_STATE = {
     "preprocessed_data": None,
     "spmf_formatted_file": None,    # 保存SPMF格式 txt 文件路径
     "spmf_dictionary": None,        # 保存Item Dictionary DataFrame
-    "spmf_formatted_data": None,   # 保存SPMF文件 -> DataFrame（可直接可视化）
-    "spmf_output_data": None,
+    "spmf_formatted_data": None,    # SPMF转换后的 DataFrame（纯数字）
+    "spmf_output_data": None,       # 挖掘结果的 DataFrame
+    "spmf_structured_patterns": None,  # SPMF 专用图表结构（List[Dict]）
+    "spmf_summary_df": None,           # 可供通用图表使用的 summary DataFrame
     "dashboard_windows": [],
 }
 
@@ -19,7 +20,7 @@ def init_state():
         if key not in st.session_state:
             st.session_state[key] = value
 
-# 只允许访问 DEFAULT_STATE 里的key（标准数据源）
+# 只允许访问 DEFAULT_STATE 里的 key（标准数据源）
 def get(key):
     return st.session_state.get(key)
 
@@ -43,8 +44,7 @@ def get_dynamic(key):
 def get_all_keys():
     return list(st.session_state.keys())
 
-
-
+# --- 自定义数据源 key 的管理（用户保存的 DataFrame 结果） ---
 CUSTOM_STATE_LIST_KEY = "_custom_data_keys"
 
 def get_custom_data_keys():

@@ -63,6 +63,7 @@ def render_algorithm_panel():
                 parameters[param] = st.number_input("Top-K", min_value=1, value=10)
 
         # --- 运行按钮 ---
+        result_df = None
         if st.button("Run Algorithm"):
 
             with st.spinner("Running Algorithm..."):
@@ -75,3 +76,24 @@ def render_algorithm_panel():
 
                 except Exception as e:
                     st.error(f"Error running algorithm: {e}")
+                    return
+
+        # --- 导出结构化结果 ---
+        st.subheader("Export Mined Patterns")
+
+        if st.button("Export Parsed Patterns to State"):
+            from components.spmf.spmf_parser import parse_spmf_output, parse_to_dataframe
+
+            dict_df = state.get("spmf_dictionary")
+            result_df = result_df or state.get("spmf_output_data")
+
+            if result_df is None or dict_df is None:
+                st.warning("Cannot export: Missing SPMF result or dictionary.")
+            else:
+                parsed_patterns = parse_spmf_output(result_df, dict_df)
+                summary_df = parse_to_dataframe(parsed_patterns)
+
+                state.set("spmf_structured_patterns", parsed_patterns)
+                state.set("spmf_summary_df", summary_df)
+
+                st.success("Parsed patterns saved to session state.")

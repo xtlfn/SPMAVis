@@ -1,17 +1,17 @@
 # components/dashboard/chart_registry.py
 
-from components.dashboard import chart_table, chart_bar, chart_map
+from components.dashboard import chart_table, chart_bar, chart_map, chart_spmf, chart_spmf_sankey, chart_spmf_heatmap
 
 CHARTS = {
     "chart_bar": {
         "renderer": chart_bar.render,
         "config_ui": chart_bar.render_config_ui,
-        "fixed_sources": ["uploaded_file", "preprocessed_data"],
+        "fixed_sources": ["uploaded_file", "preprocessed_data", "spmf_summary_df"],
         "accepts_custom_data": True
     },
     "chart_table": {
         "renderer": chart_table.render,
-        "fixed_sources": ["uploaded_file", "preprocessed_data", "spmf_formatted_data", "spmf_output_data"],
+        "fixed_sources": ["uploaded_file", "preprocessed_data", "spmf_formatted_data", "spmf_output_data", "spmf_summary_df"],
         "accepts_custom_data": True
     },
     "chart_map": {
@@ -19,7 +19,19 @@ CHARTS = {
         "config_ui": chart_map.render_config_ui,
         "fixed_sources": ["preprocessed_data"],
         "accepts_custom_data": True
-    }
+    },
+    "chart_spmf_sankey": {
+        "renderer": chart_spmf_sankey.render,
+        "config_ui": chart_spmf_sankey.render_config_ui,
+        "fixed_sources": ["spmf_structured_patterns"],
+        "accepts_custom_data": False
+    },
+    "chart_spmf_heatmap": {
+    "renderer": chart_spmf_heatmap.render,
+    "config_ui": chart_spmf_heatmap.render_config_ui,
+    "fixed_sources": ["spmf_structured_patterns"],
+    "accepts_custom_data": False
+}
 }
 
 def get_chart_renderer(chart_type):
