@@ -3,142 +3,129 @@
 import streamlit as st
 import pandas as pd
 import components.state_manager as state
+import components.data_ops as ops
 
 def render_data_tool():
     with st.expander("🛠️ Data Tool", expanded=False):
-
-        VALID_SOURCE_KEYS = [
-            "uploaded_file", "preprocessed_data", "spmf_formatted_data", "spmf_output_data"
-        ]
-        custom_keys = state.get_custom_data_keys()
-        valid_keys = []
-        for key in VALID_SOURCE_KEYS + custom_keys:
-            val = state.get(key)
-            if isinstance(val, pd.DataFrame):
-                valid_keys.append(key)
-
-        selected_key = st.selectbox("Select Data Source to Edit", valid_keys)
-        data = state.get(selected_key)
-
-        if data is None or not isinstance(data, pd.DataFrame):
-            st.warning("Selected data is not a valid DataFrame.")
+        base_df = state.get("base_data")
+        if base_df is None or not isinstance(base_df, pd.DataFrame):
+            st.warning("Please upload and load base data first.")
             return
 
-        df = data.copy()
+        tabs = st.tabs(["Normal Data Preprocessing", "SPMF Data Management"])
 
-        with st.container():
-            use_column_filter = st.checkbox("Enable Column Filter", key="enable_col_filter")
-            if use_column_filter:
-                columns_to_keep = st.multiselect("Select Columns to Keep", df.columns.tolist(), default=df.columns.tolist())
-                df = df[columns_to_keep]
+        # —— Normal Data Preprocessing —— #
+        with tabs[0]:
+            st.markdown("#### Normal Data Cleaning and Transformation")
+            df = base_df.copy()
 
-        if df.empty or len(df.columns) == 0:
-            st.error("No columns remain in the DataFrame. Please check your filters.")
-            return
+            if st.checkbox("Standardize column names", value=True):
+                df = ops.standardize_columns(df)
+            if st.checkbox("Drop pseudo-empty rows"):
+                thresh = st.slider("Pseudo-empty row threshold", 0.0, 1.0, 0.8)
+                df = ops.drop_pseudo_empty(df, threshold=thresh)
+            if st.checkbox("Fill missing values"):
+                id_cols = st.multiselect("ID columns", df.columns.tolist(), default=[])
+                coord_cols = st.multiselect("Coordinate columns", df.columns.tolist(), default=[])
+                df = ops.fill_missing(df, id_cols=id_cols, coord_cols=coord_cols)
+            if st.checkbox("Extract datetime components"):
+                dt_candidates = [
+                    c for c in df.columns
+                    if df[c].dtype == object or pd.api.types.is_datetime64_any_dtype(df[c])
+                ]
+                dt_col = st.selectbox("Datetime column", dt_candidates)
+                df = ops.extract_datetime_components(df, dt_col)
+            if st.checkbox("Drop duplicates"):
+                df = ops.drop_duplicates(df)
+            if st.checkbox("Drop rows with nulls"):
+                df = ops.drop_nulls(df)
+            if st.checkbox("Rename columns"):
+                rename_map = {}
+                for col in df.columns:
+                    new_name = st.text_input(f"New name for {col}", value=col, key=f"rename_{col}")
+                    if new_name and new_name != col:
+                        rename_map[col] = new_name
+                if rename_map:
+                    df = ops.rename_columns(df, rename_map)
 
-        with st.container():
-            use_row_filter = st.checkbox("Enable Row Filter", key="enable_row_filter")
-            if use_row_filter:
-                numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
-                if numeric_cols:
-                    filter_col = st.selectbox("Filter Column", numeric_cols)
-                    filter_op = st.selectbox("Filter Operation", [">", ">=", "<", "<=", "==", "!="])
-                    filter_val = st.number_input("Compare to Value", value=0.0)
-                    try:
-                        if filter_op == ">":
-                            df = df[df[filter_col] > filter_val]
-                        elif filter_op == ">=":
-                            df = df[df[filter_col] >= filter_val]
-                        elif filter_op == "<":
-                            df = df[df[filter_col] < filter_val]
-                        elif filter_op == "<=":
-                            df = df[df[filter_col] <= filter_val]
-                        elif filter_op == "==":
-                            df = df[df[filter_col] == filter_val]
-                        elif filter_op == "!=":
-                            df = df[df[filter_col] != filter_val]
-                    except:
-                        st.warning("Filter condition failed.")
-                else:
-                    st.info("No numeric columns available for filtering.")
+            st.markdown("**Preview cleaned data (first 10 rows)**")
+            st.dataframe(df.head(10))
 
-        with st.container():
-            use_sorting = st.checkbox("Enable Sorting", key="enable_sorting")
-            if use_sorting:
-                sort_col = st.selectbox("Sort by Column", df.columns)
-                sort_dir = st.radio("Direction", ["Ascending", "Descending"], horizontal=True)
-                try:
-                    df = df.sort_values(by=sort_col, ascending=(sort_dir == "Ascending"))
-                except:
-                    st.warning("Sorting failed.")
+            save_key = st.text_input("Save as (dynamic data key)", value="cleaned_v1")
+            if st.button("Save normal data version"):
+                state.set(save_key, df)
+                state.add_dynamic_data_key(save_key, category="normal")
+                st.success(f"Saved and registered data source: `{save_key}`")
 
-        with st.container():
-            use_rename = st.checkbox("Enable Column Renaming", key="enable_rename")
-            if use_rename:
-                rename_df = pd.DataFrame({
-                    "original": df.columns,
-                    "new_name": df.columns
-                })
-                edited = st.data_editor(
-                    rename_df,
-                    column_config={
-                        "original": st.column_config.Column("Original", disabled=True),
-                        "new_name": st.column_config.TextColumn("New Name")
-                    },
-                    use_container_width=True,
-                    hide_index=True,
-                    key="rename_editor"
-                )
-                renamed = {row["original"]: row["new_name"] for _, row in edited.iterrows()}
-                df = df.rename(columns=renamed)
+        # —— SPMF Data Management —— #
+        with tabs[1]:
+            st.markdown("#### SPMF Data Configuration and Generation")
+            dynamic = state.get_dynamic_data_keys()
+            normal_keys = [e["key"] for e in dynamic if e["category"] == "normal"]
+            base_key = st.selectbox("Select normal data version", normal_keys)
+            base_df = state.get(base_key)
+            if base_df is None:
+                st.warning("Selected data does not exist.")
+                return
 
-        with st.container():
-            use_datetime = st.checkbox("Enable DateTime Extraction", key="enable_dt")
-            if use_datetime:
-                datetime_candidates = [col for col in df.columns if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_datetime64_any_dtype(df[col])]
-                if datetime_candidates:
-                    time_col = st.selectbox("Date Column", datetime_candidates)
-                    if st.button("Extract Year / Month / Day / Weekday"):
-                        try:
-                            df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
-                            df[f"{time_col}_year"] = df[time_col].dt.year
-                            df[f"{time_col}_month"] = df[time_col].dt.month
-                            df[f"{time_col}_day"] = df[time_col].dt.day
-                            df[f"{time_col}_weekday"] = df[time_col].dt.day_name()
-                            st.success("Datetime components extracted.")
-                        except:
-                            st.error("Failed to convert to datetime.")
-                else:
-                    st.info("No suitable column for datetime extraction.")
+            dt_cols = [
+                c for c in base_df.columns
+                if base_df[c].dtype == object or pd.api.types.is_datetime64_any_dtype(base_df[c])
+            ]
+            dt_col = st.selectbox("Datetime column", dt_cols, key="spmf_dt")
+            fmt = st.text_input("Datetime format", value="%m/%d/%Y %I:%M:%S %p")
+            group_col = st.text_input("Group by column (e.g., zip_code)", value="zip_code")
 
-        with st.container():
-            use_dedup = st.checkbox("Enable Duplicate Removal", key="enable_dedupe")
-            if use_dedup:
-                df = df.drop_duplicates()
+            st.markdown("##### Select fields to include in mining")
+            item_cols = st.multiselect(
+                "Field list",
+                base_df.columns.tolist(),
+                default=[
+                    "weather_description",
+                    "illumination_description",
+                    "collision_type_description",
+                    "property_damage",
+                    "hit_and_run"
+                ]
+            )
 
-        with st.container():
-            use_null_filter = st.checkbox("Enable Null Value Removal", key="enable_nulls")
-            if use_null_filter:
-                df = df.dropna()
+            # Numeric field binning configuration
+            bins_config = {}
+            for col in item_cols:
+                if pd.api.types.is_numeric_dtype(base_df[col]):
+                    st.markdown(f"###### Numeric field binning: {col}")
+                    bins = st.text_input(f"{col} bins (comma-separated)", value="0,1,2,10", key=f"bins_{col}")
+                    labels = st.text_input(f"{col} labels (comma-separated)", value="V0,V1,V2", key=f"labels_{col}")
+                    bins = [float(x) for x in bins.split(",") if x.strip()]
+                    labels = [x.strip() for x in labels.split(",") if x.strip()]
+                    bins_config[col] = {"bins": bins, "labels": labels}
 
-        #  Save Result
-        st.markdown("###  Save Result")
-        save_as = st.text_input("Save as (Custom Name)", value="my_data")
+            if st.button("Preview dictionary & sample sequences"):
+                df2 = ops.parse_time_for_spmf(base_df, datetime_col=dt_col, fmt=fmt)
+                df2["groupid"] = df2[group_col].astype(str) + "_" + df2["dategroup"]
+                df3 = ops.discretize_fields(df2, bins_config) if bins_config else df2
+                dict_df, item2id = ops.build_spmf_dictionary(df3, item_cols)
+                st.dataframe(dict_df.head(10))
+                temp_path = ops.write_spmf_file(df3, item_cols, item2id)
+                spmf_df = ops.spmf_to_dataframe(temp_path)
+                st.dataframe(spmf_df.head(10))
 
-        if st.button("Save Processed Data"):
-            state.set(save_as, df)
-            state.add_custom_data_key(save_as)
+            spmf_version = st.text_input("SPMF version name", value="spmf_v1", key="spmf_version")
+            if st.button("Save SPMF version"):
+                df2 = ops.parse_time_for_spmf(base_df, datetime_col=dt_col, fmt=fmt)
+                df2["groupid"] = df2[group_col].astype(str) + "_" + df2["dategroup"]
+                df3 = ops.discretize_fields(df2, bins_config) if bins_config else df2
 
-            windows = state.get("dashboard_windows")
-            new_window = {
-                "id": f"table_custom_{len(windows)+1}",
-                "title": f"Custom Table: {save_as}",
-                "type": "chart_table",
-                "width": 6,
-                "data_key": save_as
-            }
-            windows.append(new_window)
-            state.set("dashboard_windows", windows)
+                dict_df, item2id = ops.build_spmf_dictionary(df3, item_cols)
+                spmf_file = ops.write_spmf_file(df3, item_cols, item2id)
 
-            st.success(f"Saved as `{save_as}` and added to dashboard.")
+                spmf_df = ops.spmf_to_dataframe(spmf_file)
 
+                state.set(f"{spmf_version}_dict", dict_df)
+                state.add_dynamic_data_key(f"{spmf_version}_dict", "spmf")
+                state.set(f"{spmf_version}_file", spmf_file)
+                state.add_dynamic_data_key(f"{spmf_version}_file", "spmf")
+                state.set(f"{spmf_version}_df", spmf_df)
+                state.add_dynamic_data_key(f"{spmf_version}_df", "spmf")
+
+                st.success(f"Saved SPMF version: `{spmf_version}`")

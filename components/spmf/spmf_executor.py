@@ -32,10 +32,8 @@ def run_spmf(algorithm_name, input_file, parameters):
     if result.returncode != 0:
         raise RuntimeError(f"SPMF Error: {result.stderr}")
 
-    # 解析SPMF输出为DataFrame
     df_result = parse_spmf_output(output_file_path)
 
-    # 保存结果
     state.set("spmf_output_data", df_result)
 
     return df_result
@@ -47,14 +45,12 @@ def parse_spmf_output(file_path):
             parts = line.strip().split(" -1 ")
             row_data = {"Pattern ID": pattern_id}
 
-            # 解析support
             if parts[-1].startswith("#SUP:"):
                 support = parts.pop(-1).replace("#SUP:", "").strip()
                 row_data["Support"] = support
             else:
                 row_data["Support"] = None
 
-            # 解析Itemsets
             for idx, itemset in enumerate(parts):
                 if itemset.strip() == "":
                     continue

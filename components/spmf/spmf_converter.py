@@ -79,7 +79,6 @@ def convert_to_spmf_format():
     offsets = {col: (i + 1) * BLOCK_SIZE for i, col in enumerate(item_columns)}
     item2id = {}
 
-    # --- 生成字典 (保存到 DataFrame)
     dict_data = []
 
     for col in item_columns:
@@ -92,7 +91,6 @@ def convert_to_spmf_format():
 
     dict_df = pd.DataFrame(dict_data)
 
-    # --- 生成SPMF文件 (保存为临时文件)
     tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
     spmf_file_path = tmp_file.name
 
@@ -104,13 +102,10 @@ def convert_to_spmf_format():
                 ids = [str(item2id[(col, row[col])]) for col in item_columns]
                 itemset_list.append(" ".join(ids))
 
-            # 正确写法：Itemset之间加 -1，末尾加 -2
             seq_file.write(" -1 ".join(itemset_list) + " -2\n")
 
-    # --- 转换成DataFrame格式（供可视化）
     spmf_df = convert_spmf_file_to_dataframe(spmf_file_path)
 
-    # --- 保存到状态
     state.set("spmf_formatted_file", spmf_file_path)
     state.set("spmf_dictionary", dict_df)
     state.set("spmf_formatted_data", spmf_df)

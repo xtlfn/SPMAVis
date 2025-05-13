@@ -2,22 +2,22 @@
 
 import streamlit as st
 import plotly.express as px
-import components.state_manager as state
 import pandas as pd
+import components.state_manager as state
 from collections import defaultdict
 
 def render(data_key=None, settings=None):
     st.subheader("Field vs. Value Heatmap")
 
     patterns = state.get(data_key)
-    if not patterns:
-        st.warning("No structured pattern data found.")
+    if not isinstance(patterns, list) or not patterns:
+        st.warning("No pattern list found. Please select a `*_patterns` data source.")
         return
 
+    # Aggregate support for each field=value pair
     counter = defaultdict(int)
-
     for pattern in patterns:
-        support = pattern.get("support", 1)
+        support = pattern.get("support", 1) or 1
         for itemset in pattern.get("sequence", []):
             for item in itemset:
                 if "=" in item:
@@ -28,11 +28,8 @@ def render(data_key=None, settings=None):
         st.info("No data to visualize.")
         return
 
-    # Build dataframe
-    data = []
-    for (field, val), count in counter.items():
-        data.append({"field": field, "value": val, "support": count})
-
+    # Build DataFrame and pivot
+    data = [{"field": f, "value": v, "support": c} for (f, v), c in counter.items()]
     df = pd.DataFrame(data)
     pivot = df.pivot(index="value", columns="field", values="support").fillna(0)
 
@@ -43,7 +40,8 @@ def render(data_key=None, settings=None):
         aspect="auto"
     )
     fig.update_layout(margin=dict(t=40, b=40, l=80, r=40))
+
     st.plotly_chart(fig, use_container_width=True)
 
 def render_config_ui(df, window):
-    st.markdown("This heatmap shows which field-value pairs appear most frequently in SPMF patterns.")
+    st.info("No configurable options for Heatmap.")

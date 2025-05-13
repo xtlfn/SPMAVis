@@ -3,24 +3,22 @@
 import streamlit as st
 
 DEFAULT_STATE = {
-    "uploaded_file": None,
-    "preprocessed_data": None,
-    "spmf_formatted_file": None,    # 保存SPMF格式 txt 文件路径
-    "spmf_dictionary": None,        # 保存Item Dictionary DataFrame
-    "spmf_formatted_data": None,    # SPMF转换后的 DataFrame（纯数字）
-    "spmf_output_data": None,       # 挖掘结果的 DataFrame
-    "spmf_structured_patterns": None,  # SPMF 专用图表结构（List[Dict]）
-    "spmf_summary_df": None,           # 可供通用图表使用的 summary DataFrame
-    "dashboard_windows": [],
+    "base_data": None,
+    "dashboard_windows": []
 }
 
-# 初始化（如果Session里没有就写入默认值）
+# 动态数据源列表键
+CUSTOM_STATE_LIST_KEY = "_dynamic_data_keys"
+
 def init_state():
+    # 初始化默认状态
     for key, value in DEFAULT_STATE.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    # 初始化动态键列表
+    if CUSTOM_STATE_LIST_KEY not in st.session_state:
+        st.session_state[CUSTOM_STATE_LIST_KEY] = []
 
-# 只允许访问 DEFAULT_STATE 里的 key（标准数据源）
 def get(key):
     return st.session_state.get(key)
 
@@ -32,26 +30,24 @@ def reset(key):
         st.session_state[key] = DEFAULT_STATE[key]
 
 def get_all_state():
-    return {key: st.session_state.get(key) for key in DEFAULT_STATE}
-
-# --- 动态 key（临时数据或特殊用途，不进入标准数据源列表） ---
-def set_dynamic(key, value):
-    st.session_state[key] = value
-
-def get_dynamic(key):
-    return st.session_state.get(key, None)
+    return {k: st.session_state.get(k) for k in DEFAULT_STATE}
 
 def get_all_keys():
     return list(st.session_state.keys())
 
-# --- 自定义数据源 key 的管理（用户保存的 DataFrame 结果） ---
-CUSTOM_STATE_LIST_KEY = "_custom_data_keys"
+# —— 动态数据源管理 —— 
 
-def get_custom_data_keys():
+def get_dynamic_data_keys():
+    """
+    返回列表：[{ "key": <str>, "category": <"normal"|"spmf"> }, …]
+    """
     return st.session_state.get(CUSTOM_STATE_LIST_KEY, [])
 
-def add_custom_data_key(key):
-    if CUSTOM_STATE_LIST_KEY not in st.session_state:
-        st.session_state[CUSTOM_STATE_LIST_KEY] = []
-    if key not in st.session_state[CUSTOM_STATE_LIST_KEY]:
-        st.session_state[CUSTOM_STATE_LIST_KEY].append(key)
+def add_dynamic_data_key(key, category="normal"):
+    """
+    注册一个动态数据源。
+    category: "normal" 或 "spmf"
+    """
+    entry = {"key": key, "category": category}
+    if entry not in st.session_state[CUSTOM_STATE_LIST_KEY]:
+        st.session_state[CUSTOM_STATE_LIST_KEY].append(entry)

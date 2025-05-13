@@ -4,96 +4,73 @@ import streamlit as st
 import components.state_manager as state
 import components.spmf.algorithm_registry as registry
 import components.spmf.spmf_executor as executor
-import components.spmf.spmf_converter as converter
+from components.spmf.spmf_parser import parse_spmf_output, parse_to_dataframe
 
 def render_algorithm_panel():
     state.init_state()
-
     with st.expander("📌 Algorithm Runner", expanded=False):
         st.header("Sequential Pattern Mining")
 
-        # --- SPMF格式文件生成 ---
-        st.subheader("SPMF File Preparation")
-
-        df_preprocessed = state.get("preprocessed_data")
-        spmf_file = state.get("spmf_formatted_file")
-
-        if df_preprocessed is None:
-            st.warning("Please upload and preprocess data first.")
-        else:
-            if spmf_file:
-                st.success("SPMF formatted file already generated.")
-                st.write(f"Path: `{spmf_file}`")
-            else:
-                if st.button("Generate SPMF Format File"):
-                    try:
-                        spmf_file, _, _ = converter.convert_to_spmf_format()
-                        st.success("SPMF file generated successfully.")
-                        st.write(f"Path: `{spmf_file}`")
-                    except Exception as e:
-                        st.error(f"Failed to generate SPMF file: {e}")
-                        return
-
-        if not spmf_file:
-            st.warning("Please generate SPMF format file before running algorithm.")
+        dynamic = state.get_dynamic_data_keys()
+        spmf_file_keys = [
+            e["key"]
+            for e in dynamic
+            if e["category"] == "spmf" and e["key"].endswith("_file")
+        ]
+        if not spmf_file_keys:
+            st.warning("Please save at least one SPMF file version (ending with '_file') in Data Tool first.")
             return
 
-        # --- 算法选择 ---
-        st.header("Run Mining Algorithm")
+        spmf_input_key = st.selectbox("Select SPMF file version (_file)", spmf_file_keys)
+        input_file = state.get(spmf_input_key)
+        if not isinstance(input_file, str):
+            st.error(f"Selected version `{spmf_input_key}` is not a file path.")
+            return
 
-        algorithm_list = registry.get_available_algorithms()
-        selected_algorithm = st.selectbox("Select Algorithm", algorithm_list)
-
-        if not selected_algorithm:
+        algo_list = registry.get_available_algorithms()
+        selected_algo = st.selectbox("Select Algorithm", algo_list)
+        if not selected_algo:
             st.warning("Please select an algorithm.")
             return
 
-        # --- 参数选择 ---
-        parameters = {}
-        param_keys = registry.get_algorithm_parameters(selected_algorithm)
+        params = {}
+        for p in registry.get_algorithm_parameters(selected_algo):
+            if p == "min_support":
+                params[p] = st.slider("Min Support", 0.0, 1.0, 0.5, 0.01)
+            elif p == "max_support":
+                params[p] = st.slider("Max Support", 0.0, 1.0, 1.0, 0.01)
+            elif p == "max_pattern_length":
+                params[p] = st.number_input("Max Pattern Length", 1, 100, 100)
+            elif p == "top_k":
+                params[p] = st.number_input("Top-K", 1, 100, 10)
 
-        for param in param_keys:
-            if param == "min_support":
-                parameters[param] = st.slider("Min Support (0.0 to 1.0)", 0.0, 1.0, 0.5, 0.01)
-            elif param == "max_support":
-                parameters[param] = st.slider("Max Support (0.0 to 1.0)", 0.0, 1.0, 1.0, 0.01)
-            elif param == "max_pattern_length":
-                parameters[param] = st.number_input("Max Pattern Length", min_value=1, value=100)
-            elif param == "top_k":
-                parameters[param] = st.number_input("Top-K", min_value=1, value=10)
-
-        # --- 运行按钮 ---
-        result_df = None
         if st.button("Run Algorithm"):
-
             with st.spinner("Running Algorithm..."):
                 try:
-                    result_df = executor.run_spmf(selected_algorithm, spmf_file, parameters)
-                    st.success("Algorithm finished successfully!")
+                    result_df = executor.run_spmf(selected_algo, input_file, params)
 
-                    # 保存 + 展示
-                    state.set("spmf_output_data", result_df)
+                    output_key = f"{spmf_input_key}_output"
+                    state.set(output_key, result_df)
+                    state.add_dynamic_data_key(output_key, "spmf")
 
+                    dict_key = spmf_input_key.replace("_file", "_dict")
+                    dict_df = state.get(dict_key)
+                    if dict_df is None:
+                        st.error(f"Dictionary not found for `{spmf_input_key}` (expected `{dict_key}`).")
+                        return
+
+                    patterns = parse_spmf_output(result_df, dict_df)
+
+                    patterns_key = spmf_input_key.replace("_file", "_patterns")
+                    state.set(patterns_key, patterns)
+                    state.add_dynamic_data_key(patterns_key, "spmf")
+
+
+                    summary_df = parse_to_dataframe(patterns)
+                    summary_key = spmf_input_key.replace("_file", "_summary")
+                    state.set(summary_key, summary_df)
+                    state.add_dynamic_data_key(summary_key, "normal")
+
+                    st.success("Algorithm run completed successfully! Results have been saved.")
                 except Exception as e:
                     st.error(f"Error running algorithm: {e}")
-                    return
-
-        # --- 导出结构化结果 ---
-        st.subheader("Export Mined Patterns")
-
-        if st.button("Export Parsed Patterns to State"):
-            from components.spmf.spmf_parser import parse_spmf_output, parse_to_dataframe
-
-            dict_df = state.get("spmf_dictionary")
-            result_df = result_df or state.get("spmf_output_data")
-
-            if result_df is None or dict_df is None:
-                st.warning("Cannot export: Missing SPMF result or dictionary.")
-            else:
-                parsed_patterns = parse_spmf_output(result_df, dict_df)
-                summary_df = parse_to_dataframe(parsed_patterns)
-
-                state.set("spmf_structured_patterns", parsed_patterns)
-                state.set("spmf_summary_df", summary_df)
-
-                st.success("Parsed patterns saved to session state.")

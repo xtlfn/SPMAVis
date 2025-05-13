@@ -17,8 +17,8 @@ with st.sidebar:
         st.header('SPMAVis')
 
     file_upload.render_file_upload()
-    chart_manager.render_window_manager()
-    algorithm.render_algorithm_panel()
     data_tool.render_data_tool()
+    chart_manager.render_window_manager()
+    algorithm.render_algorithm_panel() 
 
 dashboard.render_dashboard()

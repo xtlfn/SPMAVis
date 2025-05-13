@@ -84,18 +84,15 @@ ALGORITHMS = {
     },
 }
 
-# 获取所有算法名称
 def get_available_algorithms():
     return list(ALGORITHMS.keys())
 
-# 获取算法对应的参数
 def get_algorithm_parameters(algorithm_name):
     algo = ALGORITHMS.get(algorithm_name)
     if algo:
         return algo.get("parameters", [])
     return []
 
-# 获取算法ID
 def get_algorithm_id(algorithm_name):
     algo = ALGORITHMS.get(algorithm_name)
     if algo:

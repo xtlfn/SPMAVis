@@ -26,7 +26,7 @@ def render(data_key, settings=None):
         lon=lon,
         color=color if color in df.columns else None,
         zoom=6,
-        center={"lat": 35.8, "lon": -86.5},  # 田纳西州中心
+        center={"lat": 35.8, "lon": -86.5},
         height=600,
         mapbox_style="carto-positron",
     )
