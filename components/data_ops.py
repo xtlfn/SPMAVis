@@ -19,7 +19,11 @@ EMPTY_LIKE = {"n/a", "unknown", "", " "}
 
 def is_pseudo_empty(row, threshold=0.8):
     total = len(row)
-    empty = sum(1 for val in row if pd.isna(val) or (isinstance(val, str) and val.strip().lower() in EMPTY_LIKE))
+    empty = sum(
+        1
+        for val in row
+        if pd.isna(val) or (isinstance(val, str) and val.strip().lower() in EMPTY_LIKE)
+    )
     return (empty / total) >= threshold
 
 def drop_pseudo_empty(df: pd.DataFrame, threshold=0.8) -> pd.DataFrame:
@@ -63,7 +67,11 @@ def rename_columns(df: pd.DataFrame, rename_map: dict) -> pd.DataFrame:
 
 # —— SPMF-Related Conversions —— #
 
-def parse_time_for_spmf(df: pd.DataFrame, datetime_col="date_and_time", fmt="%m/%d/%Y %I:%M:%S %p") -> pd.DataFrame:
+def parse_time_for_spmf(
+    df: pd.DataFrame,
+    datetime_col="date_and_time",
+    fmt="%m/%d/%Y %I:%M:%S %p",
+) -> pd.DataFrame:
     df = df.copy()
     df[datetime_col] = pd.to_datetime(df[datetime_col], format=fmt, errors="coerce")
     df["dategroup"] = df[datetime_col].dt.strftime("%Y%m%d")
@@ -77,7 +85,9 @@ def discretize_fields(df: pd.DataFrame, bins_config: dict) -> pd.DataFrame:
         df[f"{col}_bin"] = pd.cut(df[col], bins=bins, labels=labels).astype(str)
     return df
 
-def build_spmf_dictionary(df: pd.DataFrame, item_columns: list, block_size=100):
+def build_spmf_dictionary(
+    df: pd.DataFrame, item_columns: list, block_size=100
+):
     offsets = {col: (i + 1) * block_size for i, col in enumerate(item_columns)}
     item2id = {}
     dict_data = []
@@ -91,17 +101,27 @@ def build_spmf_dictionary(df: pd.DataFrame, item_columns: list, block_size=100):
     dict_df = pd.DataFrame(dict_data)
     return dict_df, item2id
 
-def write_spmf_file(df: pd.DataFrame, item_columns: list, item2id: dict) -> str:
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
+def write_spmf_file(
+    df: pd.DataFrame, item_columns: list, item2id: dict
+) -> str:
+    tmp = tempfile.NamedTemporaryFile(
+        delete=False, suffix=".txt", mode="w", encoding="utf-8"
+    )
     path = tmp.name
     with tmp as f:
         for _, group in df.groupby("groupid"):
             group = group.sort_values("date_and_time")
-            itemset_list = []
+            seq_itemsets = []
             for _, row in group.iterrows():
-                ids = [str(item2id[(col, row[col])]) for col in item_columns]
-                itemset_list.append(" ".join(ids))
-            f.write(" -1 ".join(itemset_list) + " -2\n")
+                ids = []
+                for col in item_columns:
+                    key = (col, row[col])
+                    if key in item2id:
+                        ids.append(str(item2id[key]))
+                if ids:
+                    seq_itemsets.append(" ".join(ids))
+            if seq_itemsets:
+                f.write(" -1 ".join(seq_itemsets) + " -2\n")
     return path
 
 def spmf_to_dataframe(spmf_file_path: str) -> pd.DataFrame:

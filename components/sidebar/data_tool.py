@@ -6,6 +6,7 @@ import components.state_manager as state
 import components.data_ops as ops
 
 def render_data_tool():
+    state.init_state()
     with st.expander("🛠️ Data Tool", expanded=False):
         base_df = state.get("base_data")
         if base_df is None or not isinstance(base_df, pd.DataFrame):
@@ -21,32 +22,65 @@ def render_data_tool():
 
             if st.checkbox("Standardize column names", value=True):
                 df = ops.standardize_columns(df)
+
             if st.checkbox("Drop pseudo-empty rows"):
                 thresh = st.slider("Pseudo-empty row threshold", 0.0, 1.0, 0.8)
                 df = ops.drop_pseudo_empty(df, threshold=thresh)
+
             if st.checkbox("Fill missing values"):
-                id_cols = st.multiselect("ID columns", df.columns.tolist(), default=[])
-                coord_cols = st.multiselect("Coordinate columns", df.columns.tolist(), default=[])
+                st.markdown("**Fill missing values settings**")
+                id_cols = st.multiselect(
+                    "ID columns (fill as N/A or NaN):",
+                    df.columns.tolist(),
+                    default=[]
+                )
+                st.caption("Unique identifiers will be filled as 'N/A' or NaN.")
+                coord_cols = st.multiselect(
+                    "Coordinate columns (fill as 0.0):",
+                    df.columns.tolist(),
+                    default=[]
+                )
+                st.caption("Spatial coordinates will be filled as 0.0.")
                 df = ops.fill_missing(df, id_cols=id_cols, coord_cols=coord_cols)
-            if st.checkbox("Extract datetime components"):
-                dt_candidates = [
-                    c for c in df.columns
-                    if df[c].dtype == object or pd.api.types.is_datetime64_any_dtype(df[c])
-                ]
-                dt_col = st.selectbox("Datetime column", dt_candidates)
-                df = ops.extract_datetime_components(df, dt_col)
+
+            # Manual column selection with safe default filtering
+            if st.checkbox("Manual column selection"):
+                options = df.columns.tolist()
+                prev = st.session_state.get("manual_cols", options)
+                default = [c for c in prev if c in options]
+                keep_cols = st.multiselect(
+                    "Select columns to keep",
+                    options,
+                    default=default,
+                    key="manual_cols"
+                )
+                df = df[keep_cols]
+
+            if st.checkbox("Manual row filtering"):
+                filter_col = st.selectbox("Filter column", df.columns.tolist(), key="row_filter_col")
+                filter_op = st.selectbox("Operation", [">", ">=", "<", "<=", "==", "!="], key="row_filter_op")
+                filter_val = st.text_input("Filter value", value="", key="row_filter_val")
+                try:
+                    comp_val = float(filter_val) if filter_op in [">", ">=", "<", "<="] else filter_val
+                    if filter_op == ">":
+                        df = df[df[filter_col] > comp_val]
+                    elif filter_op == ">=":
+                        df = df[df[filter_col] >= comp_val]
+                    elif filter_op == "<":
+                        df = df[df[filter_col] < comp_val]
+                    elif filter_op == "<=":
+                        df = df[df[filter_col] <= comp_val]
+                    elif filter_op == "==":
+                        df = df[df[filter_col] == comp_val]
+                    elif filter_op == "!=":
+                        df = df[df[filter_col] != comp_val]
+                except Exception:
+                    st.warning("Invalid filter condition.")
+
             if st.checkbox("Drop duplicates"):
                 df = ops.drop_duplicates(df)
             if st.checkbox("Drop rows with nulls"):
                 df = ops.drop_nulls(df)
-            if st.checkbox("Rename columns"):
-                rename_map = {}
-                for col in df.columns:
-                    new_name = st.text_input(f"New name for {col}", value=col, key=f"rename_{col}")
-                    if new_name and new_name != col:
-                        rename_map[col] = new_name
-                if rename_map:
-                    df = ops.rename_columns(df, rename_map)
 
             st.markdown("**Preview cleaned data (first 10 rows)**")
             st.dataframe(df.head(10))
@@ -62,31 +96,35 @@ def render_data_tool():
             st.markdown("#### SPMF Data Configuration and Generation")
             dynamic = state.get_dynamic_data_keys()
             normal_keys = [e["key"] for e in dynamic if e["category"] == "normal"]
-            base_key = st.selectbox("Select normal data version", normal_keys)
+            base_key = st.selectbox("Select normal data version", normal_keys, key="spmf_base_key")
             base_df = state.get(base_key)
             if base_df is None:
                 st.warning("Selected data does not exist.")
                 return
 
+            # Date/time & grouping
             dt_cols = [
                 c for c in base_df.columns
                 if base_df[c].dtype == object or pd.api.types.is_datetime64_any_dtype(base_df[c])
             ]
             dt_col = st.selectbox("Datetime column", dt_cols, key="spmf_dt")
-            fmt = st.text_input("Datetime format", value="%m/%d/%Y %I:%M:%S %p")
-            group_col = st.text_input("Group by column (e.g., zip_code)", value="zip_code")
+            fmt = st.text_input("Datetime format", value="%m/%d/%Y %I:%M:%S %p", key="spmf_fmt")
+            group_col = st.text_input("Group by column (e.g., zip_code)", value="zip_code", key="spmf_group")
 
             st.markdown("##### Select fields to include in mining")
+            suggested = [
+                "weather_description",
+                "illumination_description",
+                "collision_type_description",
+                "property_damage",
+                "hit_and_run"
+            ]
+            default_fields = [c for c in suggested if c in base_df.columns]
             item_cols = st.multiselect(
                 "Field list",
-                base_df.columns.tolist(),
-                default=[
-                    "weather_description",
-                    "illumination_description",
-                    "collision_type_description",
-                    "property_damage",
-                    "hit_and_run"
-                ]
+                options=base_df.columns.tolist(),
+                default=default_fields,
+                key="spmf_fields"
             )
 
             # Numeric field binning configuration
@@ -104,8 +142,13 @@ def render_data_tool():
                 df2 = ops.parse_time_for_spmf(base_df, datetime_col=dt_col, fmt=fmt)
                 df2["groupid"] = df2[group_col].astype(str) + "_" + df2["dategroup"]
                 df3 = ops.discretize_fields(df2, bins_config) if bins_config else df2
+
+                # drop rows missing any selected field
+                df3 = df3.dropna(subset=item_cols)
+
                 dict_df, item2id = ops.build_spmf_dictionary(df3, item_cols)
                 st.dataframe(dict_df.head(10))
+
                 temp_path = ops.write_spmf_file(df3, item_cols, item2id)
                 spmf_df = ops.spmf_to_dataframe(temp_path)
                 st.dataframe(spmf_df.head(10))
@@ -116,9 +159,11 @@ def render_data_tool():
                 df2["groupid"] = df2[group_col].astype(str) + "_" + df2["dategroup"]
                 df3 = ops.discretize_fields(df2, bins_config) if bins_config else df2
 
+                # drop rows missing any selected field
+                df3 = df3.dropna(subset=item_cols)
+
                 dict_df, item2id = ops.build_spmf_dictionary(df3, item_cols)
                 spmf_file = ops.write_spmf_file(df3, item_cols, item2id)
-
                 spmf_df = ops.spmf_to_dataframe(spmf_file)
 
                 state.set(f"{spmf_version}_dict", dict_df)

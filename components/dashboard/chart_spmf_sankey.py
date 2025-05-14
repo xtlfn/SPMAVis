@@ -6,7 +6,6 @@ import components.state_manager as state
 from collections import defaultdict
 
 def render(data_key=None, settings=None):
-    st.subheader("Item Co-occurrence Sankey Diagram")
 
     patterns = state.get(data_key)
     if not isinstance(patterns, list) or not patterns:
