@@ -1,5 +1,3 @@
-# components/dashboard/chart_registry.py
-
 from components.dashboard import (
     chart_table,
     chart_bar,
@@ -61,4 +59,4 @@ def chart_accepts_custom(chart_type):
     return CHARTS.get(chart_type, {}).get("accepts_custom_data", False)
 
 def get_chart_config_ui(chart_type):
-    return CHARTS.get(chart_type, {}).get("config_ui", None)
+    return CHARTS.get(chart_type, {}).get("config_ui")

@@ -1,18 +1,18 @@
-# components/dashboard/chart_spmf_sankey.py
-
 import streamlit as st
 import plotly.graph_objects as go
-import components.state_manager as state
 from collections import defaultdict
+import components.state_manager as state
 
-def render(data_key=None, settings=None):
+def render(data_key, settings=None):
+    settings = settings or {}
+    min_link = settings.get("min_link", 1)
+    fields = settings.get("fields", None)
 
     patterns = state.get(data_key)
     if not isinstance(patterns, list) or not patterns:
-        st.warning("No pattern list found. Please select a `*_patterns` data source.")
+        st.warning("No patterns found. Select a '*_patterns' data source.")
         return
 
-    # Count co-occurrences within each itemset, weighted by support
     link_counter = defaultdict(int)
     for pattern in patterns:
         support = pattern.get("support", 1) or 1
@@ -21,54 +21,51 @@ def render(data_key=None, settings=None):
             for i in range(len(items)):
                 for j in range(i + 1, len(items)):
                     a, b = items[i], items[j]
+                    if fields:
+                        if a.split("=", 1)[0] not in fields or b.split("=", 1)[0] not in fields:
+                            continue
                     link_counter[(a, b)] += support
 
-    if not link_counter:
-        st.info("No co-occurrence relationships to display.")
+    filtered = {k: v for k, v in link_counter.items() if v >= min_link}
+    if not filtered:
+        st.info("No links above threshold.")
         return
 
-    # Build Sankey data
-    node_labels = []
-    label_to_index = {}
+    labels = []
+    index_map = {}
+    def get_index(lbl):
+        if lbl not in index_map:
+            index_map[lbl] = len(labels)
+            labels.append(lbl)
+        return index_map[lbl]
+
     sources, targets, values = [], [], []
-
-    def get_idx(label):
-        if label not in label_to_index:
-            label_to_index[label] = len(node_labels)
-            node_labels.append(label)
-        return label_to_index[label]
-
-    for (a, b), count in link_counter.items():
-        src = get_idx(a)
-        tgt = get_idx(b)
-        sources.append(src)
-        targets.append(tgt)
-        values.append(count)
-
-    # Node and link colors
-    palette = ["#6baed6", "#9ecae1", "#c6dbef", "#fdd0a2", "#fc8d59"]
-    node_colors = [palette[i % len(palette)] for i in range(len(node_labels))]
-    link_colors = ["rgba(100,150,250,0.5)" for _ in values]
+    for (a, b), v in filtered.items():
+        sources.append(get_index(a))
+        targets.append(get_index(b))
+        values.append(v)
 
     fig = go.Figure(data=[go.Sankey(
-        node=dict(
-            label=node_labels,
-            color=node_colors,
-            pad=10,
-            thickness=10,
-            line=dict(color="black", width=0.5)
-        ),
-        link=dict(
-            source=sources,
-            target=targets,
-            value=values,
-            color=link_colors
-        )
+        node=dict(label=labels, pad=10, thickness=10),
+        link=dict(source=sources, target=targets, value=values)
     )])
-    fig.update_layout(margin=dict(l=40, r=40, t=40, b=40))
-
+    fig.update_layout(margin=dict(l=20, r=20, t=20, b=20))
     st.plotly_chart(fig, use_container_width=True)
 
 def render_config_ui(df, window):
-    st.info("No configurable options for Sankey diagram.")
-
+    st.markdown("**Sankey Settings**")
+    settings = window.setdefault("settings", {})
+    settings["min_link"] = st.slider(
+        "Minimum link support", 0, 100, settings.get("min_link", 1)
+    )
+    all_fields = sorted({
+        item.split("=", 1)[0]
+        for p in state.get(window["data_key"]) or []
+        for seq in p.get("sequence", [])
+        for item in seq if "=" in item
+    })
+    settings["fields"] = st.multiselect(
+        "Fields to include", all_fields, default=settings.get("fields", all_fields)
+    )
+    if st.button("Save Sankey Settings"):
+        st.success("Settings saved.")
