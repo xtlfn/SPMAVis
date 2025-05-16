@@ -19,7 +19,7 @@ def render_data_tool():
     with st.expander("🛠️ Data Tool", expanded=False):
         tabs = st.tabs(["Types", "Clean", "SPMF"])
 
-        # —— Types Tab —— #
+        # Types Tab
         with tabs[0]:
             cols      = df_base.columns.tolist()
             id_cols   = st.multiselect("ID columns", cols, default=[c for c in ["objectid","accident_number"] if c in cols])
@@ -34,7 +34,7 @@ def render_data_tool():
             type_map.update({c:"Category" for c in cat_cols})
             st.session_state["col_types"] = type_map
 
-        # —— Clean Tab —— #
+        # Clean Tab
         with tabs[1]:
             df = df_base.copy()
             type_map = st.session_state["col_types"]
@@ -56,7 +56,21 @@ def render_data_tool():
                 val= st.text_input("Filter value", key="filter_val")
 
             drop_dup  = st.checkbox("Drop duplicates", key="drop_dup")
+
+            # new: choose which values to treat as null
             drop_null = st.checkbox("Drop null rows", key="drop_null")
+            if drop_null:
+                null_types = st.multiselect(
+                    "Null value types to drop",
+                    options=["NaN", "UNKNOWN"],
+                    default=["NaN"],
+                    key="null_types"
+                )
+                custom_nulls = st.text_input(
+                    "Custom null values (comma-separated)",
+                    value="",
+                    key="custom_nulls"
+                )
 
             save_key  = st.text_input("Save key", "cleaned_v1", key="save_clean_key")
 
@@ -86,7 +100,16 @@ def render_data_tool():
                         st.warning("Filter failed")
                 if drop_dup:
                     df2 = ops.drop_duplicates(df2)
+
                 if drop_null:
+                    # replace selected as NA then drop
+                    vals = []
+                    if "NaN" in null_types:
+                        vals.append(pd.NA)
+                    if "UNKNOWN" in null_types:
+                        vals.append("UNKNOWN")
+                    vals += [x.strip() for x in custom_nulls.split(",") if x.strip()]
+                    df2 = df2.replace(vals, pd.NA)
                     df2 = ops.drop_nulls(df2)
 
                 st.session_state["preview_df"] = df2
@@ -101,7 +124,7 @@ def render_data_tool():
                     state.add_dynamic_data_key(save_key, "normal")
                     st.success(f"Cleaned data saved as `{save_key}`")
 
-        # —— SPMF Tab —— #
+        # SPMF Tab
         with tabs[2]:
             dyn         = state.get_dynamic_data_keys()
             normal_keys = [e["key"] for e in dyn if e["category"]=="normal"]

@@ -1,55 +1,70 @@
 # components/dashboard/chart_spmf.py
 
 import streamlit as st
-import pandas as pd
 import components.state_manager as state
-from components.spmf.spmf_parser import parse_spmf_output
+
 
 def render(data_key=None, settings=None):
-    if not data_key:
-        st.warning("No data key provided.")
+    """
+    Display top-K sequential patterns as horizontal pill-style flows with individual attribute pills and support values.
+    """
+    patterns = state.get(data_key)
+    if not isinstance(patterns, list) or not patterns:
+        st.warning("No pattern list found. Please select a `*_patterns` data source.")
         return
 
-    result_df = state.get(data_key)
-    dict_df = state.get("spmf_dictionary")
+    # Determine Top K
+    top_k = 10
+    if isinstance(settings, dict):
+        try:
+            top_k = int(settings.get("top_k", top_k))
+        except:
+            pass
 
-    if result_df is None or dict_df is None:
-        st.warning("SPMF output or dictionary not found.")
-        return
+    # Sort patterns by descending support and select top_k
+    sorted_patterns = sorted(
+        patterns,
+        key=lambda p: p.get("support", 0),
+        reverse=True
+    )[:top_k]
 
-    settings = settings or {}
-    top_k = settings.get("top_k", 10)
-    sort_by = settings.get("sort_by", "support")
-    display = settings.get("display", "text")
+    # Render each pattern as a flow of attribute pills
+    for idx, pat in enumerate(sorted_patterns, start=1):
+        support = pat.get("support", 0)
+        seq = pat.get("sequence", [])
+        # Flatten all attribute items into a single list
+        flat_items = [item for itemset in seq for item in itemset]
+        # Build pill HTML for each attribute
+        pill_list = []
+        for itm in flat_items:
+            pill_list.append(
+                f"<span style='display:inline-block; background-color:#e0f3ff;"
+                "border:1px solid #90caff; border-radius:10px; padding:4px 8px;"
+                f"margin-right:4px'>{itm}</span>"
+            )
+        # Join pills with arrow separators
+        separator = "<span style='font-size:16px; margin:0 4px;'>&#8594;</span>"
+        flow_html = separator.join(pill_list)
+        # Compose final HTML line with support annotation
+        line_html = (
+            f"<div style='margin-bottom:12px;'>"
+            f"<strong>{idx}.</strong>&nbsp;{flow_html}&nbsp;"
+            f"<em style='color:#666;'>(support: {support})</em>"
+            f"</div>"
+        )
+        st.markdown(line_html, unsafe_allow_html=True)
 
-    patterns = parse_spmf_output(result_df, dict_df)
 
-    if sort_by == "support":
-        patterns.sort(key=lambda x: x.get("support", 0), reverse=True)
-
-    st.markdown(f"### Top {top_k} Frequent Patterns")
-
-    for p in patterns[:top_k]:
-        support = p.get("support", "?")
-        seq = p["sequence"]
-        text = " → ".join([" + ".join(itemset) for itemset in seq])
-        st.markdown(f"- **Pattern #{p['id']}** (Support: {support})\n\n{text}")
-
-def render_config_ui(df, window):
-    st.markdown("#### Configure Pattern Viewer")
-
-    settings = window.get("settings", {})
-
-    top_k = st.number_input("Top K Patterns", min_value=1, max_value=100, value=settings.get("top_k", 10), key=f"{window['id']}_topk")
-    sort_by = st.selectbox("Sort By", ["support", "length"], index=0, key=f"{window['id']}_sort")
-    display = st.selectbox("Display Format", ["text"], index=0, key=f"{window['id']}_display")
-
-    settings.update({
-        "top_k": top_k,
-        "sort_by": sort_by,
-        "display": display
-    })
-
-    if st.button("Save Chart Settings", key=f"save_{window['id']}"):
-        window["settings"] = settings
-        st.success("Pattern viewer settings saved.")
+def render_config_ui(patterns, window):
+    """
+    Configuration for pattern list: select number of Top K patterns to display.
+    """
+    cfg = window.get("settings", {}) or {}
+    current = cfg.get("top_k", 10)
+    top_k = st.number_input(
+        "Top K patterns to display", min_value=1, max_value=200,
+        value=int(current), key=f"{window['id']}_topk"
+    )
+    if st.button("Save Pattern List Settings", key=f"save_spmf_{window['id']}"):
+        window["settings"] = {"top_k": top_k}
+        st.success("Settings saved.")

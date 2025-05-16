@@ -4,7 +4,10 @@ from components.dashboard import (
     chart_map,
     chart_spmf,
     chart_spmf_sankey,
-    chart_spmf_heatmap
+    chart_spmf_heatmap,
+    chart_spmf_parallel,
+    chart_spmf_sunburst,
+    chart_spmf_treemap
 )
 
 CHARTS = {
@@ -43,7 +46,25 @@ CHARTS = {
         "config_ui": chart_spmf_heatmap.render_config_ui,
         "fixed_sources": [],
         "accepts_custom_data": True
-    }
+    },
+    "chart_spmf_parallel": {
+        "renderer": chart_spmf_parallel.render,
+        "config_ui": chart_spmf_parallel.render_config_ui,
+        "fixed_sources": [],
+        "accepts_custom_data": True
+    },
+    "chart_spmf_sunburst": {
+        "renderer": chart_spmf_sunburst.render,
+        "config_ui": chart_spmf_sunburst.render_config_ui,
+        "fixed_sources": [],
+        "accepts_custom_data": True
+    },
+    "chart_spmf_treemap": {
+        "renderer": chart_spmf_treemap.render,
+        "config_ui": chart_spmf_treemap.render_config_ui,
+        "fixed_sources": [],
+        "accepts_custom_data": True
+    },
 }
 
 def get_chart_renderer(chart_type):
