@@ -289,10 +289,17 @@ def render_data_tool():
             base_key = st.selectbox("Base data", normal_keys)
             df0 = base_df if base_key == "base_data" else state.get(base_key)
             tm = st.session_state["col_types"]
-            dt_opts = [c for c, t in tm.items() if t == "Datetime"]
-            dt_col = st.selectbox("Datetime column", dt_opts)
-            fmt = st.text_input("Datetime format", "%m/%d/%Y %I:%M:%S %p")
-            grp = st.text_input("Group by column", "zip_code")
+
+            pattern_mode = st.radio("Pattern type", ["Sequence", "Association"], horizontal=True, key="spmf_mode")
+
+            if pattern_mode == "Sequence":
+                dt_opts = [c for c, t in tm.items() if t == "Datetime"]
+                dt_col = st.selectbox("Datetime column", dt_opts)
+                fmt = st.text_input("Datetime format", "%m/%d/%Y %I:%M:%S %p")
+                grp = st.text_input("Group by column", "zip_code")
+            else:
+                dt_col = fmt = grp = None  # placeholders for later branch logic
+
             fields = st.multiselect("Fields", df0.columns.tolist())
 
             bins_conf = {}
@@ -314,20 +321,41 @@ def render_data_tool():
             prev_spmf = st.button("Preview SPMF")
             save_spmf = st.button("Save SPMF")
 
-            def _to_spmf():
+            def _to_sequence_spmf():
                 d1 = ops.parse_time_for_spmf(df0, dt_col, fmt)
                 d1["groupid"] = d1[grp].astype(str) + "_" + d1["dategroup"]
                 d2 = ops.discretize_fields(d1, bins_conf) if bins_conf else d1
                 d2 = d2.dropna(subset=fields)
-                dict_df, it2id = ops.build_spmf_dictionary(d2, fields)
-                path = ops.write_spmf_file(d2, fields, it2id)
+                dict_df, _ = ops.build_spmf_dictionary(d2, fields)
+                path = ops.write_spmf_file(d2, fields, _)
                 sp_df = ops.spmf_to_dataframe(path)
                 return dict_df, path, sp_df
 
+            def _to_transaction_spmf():
+                # ensure severity exists
+                if "severity" not in df0.columns:
+                    st.error("Column 'severity' is required for Association mode.")
+                    return None, None, None
+                item_cols = fields + ["severity"]
+                d1 = ops.discretize_fields(df0, bins_conf) if bins_conf else df0
+                d1 = d1.dropna(subset=item_cols)
+                dict_df, _ = ops.build_spmf_dictionary(d1, item_cols)
+                path = ops.write_transaction_file(d1, item_cols, _)
+                trx_df = pd.read_csv(path, header=None, names=["Transaction"])
+                return dict_df, path, trx_df
+
             if prev_spmf or save_spmf:
-                dict_df, path, sp_df = _to_spmf()
+                if pattern_mode == "Sequence":
+                    dict_df, path, sp_df = _to_sequence_spmf()
+                else:
+                    dict_df, path, sp_df = _to_transaction_spmf()
+
+                if dict_df is None:
+                    st.stop()
+
                 st.dataframe(dict_df.head(10000), use_container_width=True)
                 st.dataframe(sp_df.head(10), use_container_width=True)
+
                 if save_spmf:
                     state.set(f"{spmf_key}_dict", dict_df)
                     state.add_dynamic_data_key(f"{spmf_key}_dict", "spmf")
@@ -335,4 +363,5 @@ def render_data_tool():
                     state.add_dynamic_data_key(f"{spmf_key}_file", "spmf")
                     state.set(f"{spmf_key}_df", sp_df)
                     state.add_dynamic_data_key(f"{spmf_key}_df", "spmf")
+                    state.set("spmf_dictionary", dict_df)
                     st.success(f"SPMF saved as `{spmf_key}`")

@@ -1,113 +1,108 @@
 # components/spmf/spmf_converter.py
-
 import pandas as pd
 import numpy as np
-from datetime import datetime
 import tempfile
+from pathlib import Path
 import components.state_manager as state
 
 BLOCK_SIZE = 100
 
-def parse_time(df):
-    df['date_and_time'] = pd.to_datetime(
-        df['date_and_time'],
-        format="%m/%d/%Y %I:%M:%S %p",  # 明确格式，避免警告
-        errors='coerce'
+
+# ---------- helpers ----------------------------------------------------------
+def _tmp_path(suffix: str = ".txt") -> str:
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    tmp.close()
+    return tmp.name
+
+
+def _parse_time(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["date_and_time"] = pd.to_datetime(
+        df["date_and_time"],
+        format="%m/%d/%Y %I:%M:%S %p",
+        errors="coerce",
     )
-    df['dategroup'] = df['date_and_time'].dt.strftime('%Y%m%d')
+    df["dategroup"] = df["date_and_time"].dt.strftime("%Y%m%d")
     return df
 
-def convert_spmf_file_to_dataframe(spmf_file_path):
+
+# ---------- common dictionary builder ---------------------------------------
+def build_dictionary(df: pd.DataFrame, item_cols: list[str]) -> tuple[pd.DataFrame, dict]:
+    offsets = {col: (i + 1) * BLOCK_SIZE for i, col in enumerate(item_cols)}
+    item2id, dict_rows = {}, []
+    for col in item_cols:
+        base = offsets[col]
+        for idx, val in enumerate(sorted(df[col].dropna().unique())):
+            iid = base + idx
+            item2id[(col, val)] = iid
+            dict_rows.append({"Column": col, "Value": val, "ID": iid})
+    return pd.DataFrame(dict_rows), item2id
+
+
+# ---------- writers ---------------------------------------------------------
+def write_sequence_file(df: pd.DataFrame, item_cols: list[str], item2id: dict) -> str:
+    path = _tmp_path()
+    with open(path, "w", encoding="utf-8") as f:
+        for _, grp in df.groupby("groupid"):
+            grp = grp.sort_values("date_and_time")
+            seq = [
+                " ".join(
+                    str(item2id[(c, v)]) for c, v in row[item_cols].items()
+                    if pd.notna(v) and (c, v) in item2id
+                )
+                for _, row in grp.iterrows()
+            ]
+            f.write(" -1 ".join(seq) + " -2\n")
+    return path
+
+
+def write_transaction_file(df: pd.DataFrame, item_cols: list[str], item2id: dict) -> str:
+    path = _tmp_path()
+    with open(path, "w", encoding="utf-8") as f:
+        for _, row in df.iterrows():
+            ids = [str(item2id[(c, row[c])]) for c in item_cols if (c, row[c]) in item2id]
+            if ids:
+                f.write(" ".join(ids) + "\n")
+    return path
+
+
+# ---------- converters for UI ------------------------------------------------
+def sequence_converter(df: pd.DataFrame, time_col: str, fmt: str, group_col: str, item_cols: list, bins_conf: dict):
+    df = df.copy()
+    df[time_col] = pd.to_datetime(df[time_col], format=fmt, errors="coerce")
+    df["dategroup"] = df[time_col].dt.strftime("%Y%m%d")
+    df["groupid"] = df[group_col].astype(str) + "_" + df["dategroup"]
+
+    for c, conf in bins_conf.items():
+        df[c] = pd.cut(df[c], bins=conf["bins"], labels=conf["labels"], include_lowest=True).astype(str)
+
+    df = df.dropna(subset=item_cols)
+    dict_df, item2id = build_dictionary(df, item_cols)
+    file_path = write_sequence_file(df, item_cols, item2id)
+    spmf_df = _sequence_to_df(file_path)
+    return file_path, dict_df, spmf_df
+
+
+def transaction_converter(df: pd.DataFrame, item_cols: list, bins_conf: dict):
+    df = df.copy()
+    for c, conf in bins_conf.items():
+        df[c] = pd.cut(df[c], bins=conf["bins"], labels=conf["labels"], include_lowest=True).astype(str)
+
+    df = df.dropna(subset=item_cols)
+    dict_df, item2id = build_dictionary(df, item_cols)
+    file_path = write_transaction_file(df, item_cols, item2id)
+    trx_df = pd.read_csv(file_path, header=None, names=["Transaction"])
+    return file_path, dict_df, trx_df
+
+
+# ---------- util -------------------------------------------------------------
+def _sequence_to_df(spmf_file_path: str) -> pd.DataFrame:
     rows = []
     with open(spmf_file_path, "r", encoding="utf-8") as f:
-        for seq_id, line in enumerate(f, start=1):
-            parts = line.strip().split("-2")[0].strip()
-            itemsets = parts.split(" -1 ")
-            row_data = {"Sequence ID": seq_id}
-
-            for idx, itemset in enumerate(itemsets):
-                if itemset.strip() == "":
-                    continue
-
-                items = itemset.strip().split()
-                row_data[f"Itemset {idx + 1}"] = ", ".join(items)
-
-            rows.append(row_data)
-
-    df = pd.DataFrame(rows)
-    return df
-
-def convert_to_spmf_format():
-    df = state.get("preprocessed_data")
-
-    if df is None:
-        return None, None, None
-
-    df = df.copy()
-
-    if "date_and_time" not in df.columns or "zip_code" not in df.columns:
-        raise ValueError("Missing required columns 'Date and Time' or 'Zip Code'")
-
-    df = df.dropna(subset=["date_and_time", "zip_code"])
-
-    df = parse_time(df)
-    df["groupid"] = df["zip_code"].astype(str) + "_" + df["dategroup"]
-
-    # Discretize
-    df["vehiclecountbin"] = pd.cut(
-        df["number_of_motor_vehicles"],
-        bins=[-1, 1, 2, df["number_of_motor_vehicles"].max()],
-        labels=["V1", "V2", "V>=3"]
-    ).astype(str)
-
-    df["injuryflag"] = df["number_of_injuries"].apply(lambda x: "Injured" if x > 0 else "NoInjury")
-    df["fatalityflag"] = df["number_of_fatalities"].apply(lambda x: "Fatal" if x > 0 else "NonFatal")
-
-    item_columns = [
-        "weather_description",
-        "illumination_description",
-        "collision_type_description",
-        "property_damage",
-        "hit_and_run",
-        "vehiclecountbin",
-        "injuryflag",
-        "fatalityflag"
-    ]
-
-    df = df.dropna(subset=item_columns)
-
-    offsets = {col: (i + 1) * BLOCK_SIZE for i, col in enumerate(item_columns)}
-    item2id = {}
-
-    dict_data = []
-
-    for col in item_columns:
-        unique_vals = sorted(df[col].unique())
-        base = offsets[col]
-        for idx, val in enumerate(unique_vals):
-            id_val = base + idx
-            item2id[(col, val)] = id_val
-            dict_data.append({"Column": col, "Value": val, "ID": id_val})
-
-    dict_df = pd.DataFrame(dict_data)
-
-    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
-    spmf_file_path = tmp_file.name
-
-    with tmp_file as seq_file:
-        for group, subdf in df.groupby("groupid"):
-            subdf = subdf.sort_values("date_and_time")
-            itemset_list = []
-            for _, row in subdf.iterrows():
-                ids = [str(item2id[(col, row[col])]) for col in item_columns]
-                itemset_list.append(" ".join(ids))
-
-            seq_file.write(" -1 ".join(itemset_list) + " -2\n")
-
-    spmf_df = convert_spmf_file_to_dataframe(spmf_file_path)
-
-    state.set("spmf_formatted_file", spmf_file_path)
-    state.set("spmf_dictionary", dict_df)
-    state.set("spmf_formatted_data", spmf_df)
-
-    return spmf_file_path, dict_df, spmf_df
+        for sid, line in enumerate(f, 1):
+            parts = line.strip().split("-2")[0].strip().split(" -1 ")
+            row = {"Sequence ID": sid}
+            for idx, itemset in enumerate(parts):
+                row[f"Itemset {idx + 1}"] = itemset.replace(" ", ", ")
+            rows.append(row)
+    return pd.DataFrame(rows)

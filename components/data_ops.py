@@ -1,11 +1,9 @@
 # components/data_ops.py
 
 import pandas as pd
-import numpy as np
-import tempfile
 import os
 import uuid
-from collections import defaultdict
+from components.spmf.spmf_converter import write_transaction_file as _wt_file
 
 def load_csv(path: str) -> pd.DataFrame:
     return pd.read_csv(path)
@@ -132,3 +130,6 @@ def spmf_to_dataframe(path: str) -> pd.DataFrame:
             row.update({f"Itemset {i+1}": p for i, p in enumerate(parts)})
             rows.append(row)
     return pd.DataFrame(rows)
+
+def write_transaction_file(df, item_cols, item2id, path=None):
+    return _wt_file(df, item_cols, item2id)

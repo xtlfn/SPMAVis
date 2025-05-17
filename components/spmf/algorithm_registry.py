@@ -1,100 +1,48 @@
 # components/spmf/algorithm_registry.py
 
-# 注册所有可用算法
-ALGORITHMS = {
-    "PrefixSpan": {
-        "id": "PrefixSpan",
-        "parameters": ["min_support"],
-    },
-    "GSP": {
-        "id": "GSP",
-        "parameters": ["min_support"],
-    },
-    "SPADE": {
-        "id": "SPADE",
-        "parameters": ["min_support"],
-    },
-    "CM-SPADE": {
-        "id": "CM-SPADE",
-        "parameters": ["min_support"],
-    },
-    "SPAM": {
-        "id": "SPAM",
-        "parameters": ["min_support", "max_pattern_length"],
-    },
-    "CM-SPAM": {
-        "id": "CM-SPAM",
-        "parameters": ["min_support"],
-    },
-    "Fast": {
-        "id": "Fast",
-        "parameters": ["min_support", "max_support"],
-    },
-    "LAPIN": {
-        "id": "LAPIN",
-        "parameters": ["min_support"],
-    },
-    "ClaSP": {
-        "id": "ClaSP",
-        "parameters": ["min_support"],
-    },
-    "CM-ClaSP": {
-        "id": "CM-ClaSP",
-        "parameters": ["min_support"],
-    },
-    "CloFast": {
-        "id": "CloFast",
-        "parameters": ["min_support", "max_support"],
-    },
-    "CloSpan": {
-        "id": "CloSpan",
-        "parameters": ["min_support"],
-    },
-    "BIDE+": {
-        "id": "BIDE+",
-        "parameters": ["min_support"],
-    },
-    "MaxSP": {
-        "id": "MaxSP",
-        "parameters": ["min_support"],
-    },
-    "VMSP": {
-        "id": "VMSP",
-        "parameters": ["min_support"],
-    },
-    "FEAT": {
-        "id": "FEAT",
-        "parameters": ["min_support"],
-    },
-    "FSGP": {
-        "id": "FSGP",
-        "parameters": ["min_support"],
-    },
-    "VGEN": {
-        "id": "VGEN",
-        "parameters": ["min_support"],
-    },
-    "TKS": {
-        "id": "TKS",
-        "parameters": ["top_k"],
-    },
-    "TSP_nonClosed": {
-        "id": "TSP_nonClosed",
-        "parameters": ["top_k"],
+ALGORITHMS: dict[str, dict] = {
+    # -------- sequential pattern mining --------
+    "PrefixSpan":    {"id": "PrefixSpan",    "category": "seq",  "parameters": ["min_support"]},
+    "GSP":           {"id": "GSP",           "category": "seq",  "parameters": ["min_support"]},
+    "SPADE":         {"id": "SPADE",         "category": "seq",  "parameters": ["min_support"]},
+    "CM-SPADE":      {"id": "CM-SPADE",      "category": "seq",  "parameters": ["min_support"]},
+    "SPAM":          {"id": "SPAM",          "category": "seq",  "parameters": ["min_support", "max_pattern_length"]},
+    "CM-SPAM":       {"id": "CM-SPAM",       "category": "seq",  "parameters": ["min_support"]},
+    "Fast":          {"id": "Fast",          "category": "seq",  "parameters": ["min_support", "max_support"]},
+    "LAPIN":         {"id": "LAPIN",         "category": "seq",  "parameters": ["min_support"]},
+    "ClaSP":         {"id": "ClaSP",         "category": "seq",  "parameters": ["min_support"]},
+    "CM-ClaSP":      {"id": "CM-ClaSP",      "category": "seq",  "parameters": ["min_support"]},
+    "CloFast":       {"id": "CloFast",       "category": "seq",  "parameters": ["min_support", "max_support"]},
+    "CloSpan":       {"id": "CloSpan",       "category": "seq",  "parameters": ["min_support"]},
+    "BIDE+":         {"id": "BIDE+",         "category": "seq",  "parameters": ["min_support"]},
+    "MaxSP":         {"id": "MaxSP",         "category": "seq",  "parameters": ["min_support"]},
+    "VMSP":          {"id": "VMSP",          "category": "seq",  "parameters": ["min_support"]},
+    "FEAT":          {"id": "FEAT",          "category": "seq",  "parameters": ["min_support"]},
+    "FSGP":          {"id": "FSGP",          "category": "seq",  "parameters": ["min_support"]},
+    "VGEN":          {"id": "VGEN",          "category": "seq",  "parameters": ["min_support"]},
+    "TKS":           {"id": "TKS",           "category": "seq",  "parameters": ["top_k"]},
+    "TSP_nonClosed": {"id": "TSP_nonClosed", "category": "seq",  "parameters": ["top_k"]},
+
+    # -------- association / class–rule mining --------
+    "TopKClassRules": {
+        "id": "TopKClassRules",
+        "category": "rule",
+        "parameters": ["k", "min_conf", "allowed_items"],   # allowed_items: comma-separated list of IDs
     },
 }
 
-def get_available_algorithms():
-    return list(ALGORITHMS.keys())
 
-def get_algorithm_parameters(algorithm_name):
-    algo = ALGORITHMS.get(algorithm_name)
-    if algo:
-        return algo.get("parameters", [])
-    return []
+def get_available_algorithms() -> list[str]:
+    return list(ALGORITHMS)
 
-def get_algorithm_id(algorithm_name):
-    algo = ALGORITHMS.get(algorithm_name)
-    if algo:
-        return algo.get("id")
-    return None
+
+def get_algorithm_parameters(name: str) -> list[str]:
+    return ALGORITHMS[name]["parameters"]
+
+
+def get_algorithm_id(name: str) -> str:
+    return ALGORITHMS[name]["id"]
+
+
+def get_algorithm_cat(name: str) -> str:
+    return ALGORITHMS[name]["category"]

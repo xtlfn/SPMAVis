@@ -1,63 +1,54 @@
 # components/spmf/executor.py
-
 import subprocess
-import components.spmf.algorithm_registry as registry
-import components.state_manager as state
-import pandas as pd
 import tempfile
+import pandas as pd
 
-def generate_command(algorithm_name, input_file, output_file, parameters):
-    algo_id = registry.get_algorithm_id(algorithm_name)
+import components.spmf.algorithm_registry as registry
+import components.spmf.spmf_parser as parser
+import components.state_manager as state
+
+
+# ------------- helper --------------------------------------------------------
+_SEQ_ALGOS = {
+    "PrefixSpan", "GSP", "SPADE", "CM-SPADE", "SPAM", "CM-SPAM", "Fast", "LAPIN",
+    "ClaSP", "CM-ClaSP", "CloFast", "CloSpan", "BIDE+", "MaxSP", "VMSP",
+    "FEAT", "FSGP", "VGEN", "TKS", "TSP_nonClosed",
+}
+
+_RULE_ALGOS = {"TopKClassRules"}
+
+
+def _generate_command(algo_name: str, input_file: str, output_file: str, params: dict) -> list[str]:
+    algo_id = registry.get_algorithm_id(algo_name)
     if algo_id is None:
-        raise ValueError(f"Algorithm {algorithm_name} not found")
+        raise ValueError(f"Algorithm {algo_name} not found")
 
+    # registry defines correct order of parameters
     param_list = []
-    for param_key in registry.get_algorithm_parameters(algorithm_name):
-        param_value = parameters.get(param_key)
-        if param_value is not None:
-            param_list.append(str(param_value))
+    for key in registry.get_algorithm_parameters(algo_name):
+        val = params.get(key)
+        if val is not None:
+            param_list.append(str(val))
 
-    command = ["java", "-jar", "components/spmf/spmf.jar", "run", algo_id, input_file, output_file] + param_list
-    return command
+    return ["java", "-jar", "components/spmf/spmf.jar", "run", algo_id, input_file, output_file] + param_list
 
-def run_spmf(algorithm_name, input_file, parameters):
-    tmp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
-    output_file_path = tmp_output.name
-    tmp_output.close()
 
-    command = generate_command(algorithm_name, input_file, output_file_path, parameters)
+# ------------- public API ----------------------------------------------------
+def run_spmf(algo_name: str, input_file: str, parameters: dict) -> pd.DataFrame:
+    tmp_out = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8")
+    output_path = tmp_out.name
+    tmp_out.close()
 
-    result = subprocess.run(command, capture_output=True, text=True)
+    cmd = _generate_command(algo_name, input_file, output_path, parameters)
 
-    if result.returncode != 0:
-        raise RuntimeError(f"SPMF Error: {result.stderr}")
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"SPMF Error: {proc.stderr}")
 
-    df_result = parse_spmf_output(output_file_path)
+    if algo_name in _RULE_ALGOS:
+        df_result = parser.parse_rule_output(output_path, state.get("spmf_dictionary"))
+    else:
+        df_result = parser.parse_sequence_output(output_path)
 
     state.set("spmf_output_data", df_result)
-
     return df_result
-
-def parse_spmf_output(file_path):
-    rows = []
-    with open(file_path, "r", encoding="utf-8") as f:
-        for pattern_id, line in enumerate(f, start=1):
-            parts = line.strip().split(" -1 ")
-            row_data = {"Pattern ID": pattern_id}
-
-            if parts[-1].startswith("#SUP:"):
-                support = parts.pop(-1).replace("#SUP:", "").strip()
-                row_data["Support"] = support
-            else:
-                row_data["Support"] = None
-
-            for idx, itemset in enumerate(parts):
-                if itemset.strip() == "":
-                    continue
-                items = itemset.strip().split()
-                row_data[f"Itemset {idx + 1}"] = ", ".join(items)
-
-            rows.append(row_data)
-
-    df = pd.DataFrame(rows)
-    return df

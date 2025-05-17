@@ -4,73 +4,112 @@ import streamlit as st
 import components.state_manager as state
 import components.spmf.algorithm_registry as registry
 import components.spmf.spmf_executor as executor
-from components.spmf.spmf_parser import parse_spmf_output, parse_to_dataframe
+from components.spmf.spmf_parser import (
+    parse_spmf_output,
+    parse_to_dataframe,
+)
+
+
+def _spmf_files() -> list[str]:
+    dyn = state.get_dynamic_data_keys()
+    return [
+        e["key"]
+        for e in dyn
+        if e["category"] == "spmf" and e["key"].endswith("_file")
+    ]
+
+
+def _ui_param_input(param_name: str):
+    if param_name == "min_support":
+        return st.slider("min_support", 0.0, 1.0, 0.5, 0.01)
+    if param_name == "max_support":
+        return st.slider("max_support", 0.0, 1.0, 1.0, 0.01)
+    if param_name == "max_pattern_length":
+        return st.number_input("max_pattern_length", 1, 1000, 100)
+    if param_name in {"top_k", "k"}:
+        return st.number_input(param_name, 1, 1000, 10)
+    if param_name == "min_conf":
+        return st.slider("min_conf", 0.0, 1.0, 0.8, 0.01)
+    if param_name == "allowed_items":
+        st.caption("allowed_items – IDs of items allowed as rule consequent")
+        dict_df = state.get(
+            st.session_state["algo_selected_file"].replace("_file", "_dict")
+        )
+        if dict_df is not None:
+            picked = st.multiselect(
+                "allowed_items",
+                dict_df["ID"].tolist(),
+            )
+            return ",".join(map(str, picked))
+        return st.text_input("allowed_items", "")
+    return st.text_input(param_name)
+
 
 def render_algorithm_panel():
     state.init_state()
     with st.expander("📌 Algorithm Runner", expanded=False):
-        st.header("Sequential Pattern Mining")
+        st.header("SPMF Algorithm Runner")
 
-        dynamic = state.get_dynamic_data_keys()
-        spmf_file_keys = [
-            e["key"]
-            for e in dynamic
-            if e["category"] == "spmf" and e["key"].endswith("_file")
+        file_keys = _spmf_files()
+        if not file_keys:
+            st.info("No *_file artefacts saved yet. Use Data Tool first.")
+            return
+
+        file_key = st.selectbox(
+            "Input SPMF file",
+            file_keys,
+            key="algo_selected_file",
+        )
+        in_path = state.get(file_key)
+
+        # choose pattern category first
+        mode = st.radio(
+            "Pattern category",
+            ["Sequence", "Association"],
+            horizontal=True,
+            key="algo_category",
+        )
+        algo_cat = "seq" if mode == "Sequence" else "rule"
+
+        algo_options = [
+            a
+            for a in registry.get_available_algorithms()
+            if registry.get_algorithm_cat(a) == algo_cat
         ]
-        if not spmf_file_keys:
-            st.warning("Please save at least one SPMF file version (ending with '_file') in Data Tool first.")
+        algo_name = st.selectbox("Algorithm", algo_options)
+        if not algo_name:
             return
 
-        spmf_input_key = st.selectbox("Select SPMF file version (_file)", spmf_file_keys)
-        input_file = state.get(spmf_input_key)
-        if not isinstance(input_file, str):
-            st.error(f"Selected version `{spmf_input_key}` is not a file path.")
-            return
+        params = {
+            p: _ui_param_input(p)
+            for p in registry.get_algorithm_parameters(algo_name)
+        }
 
-        algo_list = registry.get_available_algorithms()
-        selected_algo = st.selectbox("Select Algorithm", algo_list)
-        if not selected_algo:
-            st.warning("Please select an algorithm.")
-            return
-
-        params = {}
-        for p in registry.get_algorithm_parameters(selected_algo):
-            if p == "min_support":
-                params[p] = st.slider("Min Support", 0.0, 1.0, 0.5, 0.01)
-            elif p == "max_support":
-                params[p] = st.slider("Max Support", 0.0, 1.0, 1.0, 0.01)
-            elif p == "max_pattern_length":
-                params[p] = st.number_input("Max Pattern Length", 1, 100, 100)
-            elif p == "top_k":
-                params[p] = st.number_input("Top-K", 1, 100, 10)
-
-        if st.button("Run Algorithm"):
-            with st.spinner("Running Algorithm..."):
+        if st.button("Run"):
+            with st.spinner("Running..."):
                 try:
-                    result_df = executor.run_spmf(selected_algo, input_file, params)
+                    df_raw = executor.run_spmf(algo_name, in_path, params)
 
-                    output_key = f"{spmf_input_key}_output"
-                    state.set(output_key, result_df)
-                    state.add_dynamic_data_key(output_key, "spmf")
+                    out_key = f"{file_key}_output"
+                    state.set(out_key, df_raw)
+                    state.add_dynamic_data_key(out_key, "spmf")
 
-                    dict_key = spmf_input_key.replace("_file", "_dict")
-                    dict_df = state.get(dict_key)
-                    if dict_df is None:
-                        st.error(f"Dictionary not found for `{spmf_input_key}` (expected `{dict_key}`).")
-                        return
+                    dict_df = state.get(file_key.replace("_file", "_dict"))
 
-                    patterns = parse_spmf_output(result_df, dict_df)
+                    if algo_cat == "seq":
+                        patterns = parse_spmf_output(df_raw, dict_df)
+                        summary = parse_to_dataframe(patterns)
 
-                    patterns_key = spmf_input_key.replace("_file", "_patterns")
-                    state.set(patterns_key, patterns)
-                    state.add_dynamic_data_key(patterns_key, "spmf")
+                        patterns_key = file_key.replace("_file", "_patterns")
+                        state.set(patterns_key, patterns)
+                        state.add_dynamic_data_key(patterns_key, "spmf")
+                    else:  # rule category
+                        summary = df_raw
 
-
-                    summary_df = parse_to_dataframe(patterns)
-                    summary_key = spmf_input_key.replace("_file", "_summary")
-                    state.set(summary_key, summary_df)
+                    summary_key = file_key.replace("_file", "_summary")
+                    state.set(summary_key, summary)
                     state.add_dynamic_data_key(summary_key, "normal")
 
-                    st.success("Algorithm run completed successfully! Results have been saved.")
-                except Exception as e:
-                    st.error(f"Error running algorithm: {e}")
+                    st.success("Algorithm completed - results saved.")
+                except Exception as err:
+                    st.error(f"SPMF execution failed: {err}")
