@@ -1,3 +1,4 @@
+# components/sidebar/data_tool.py
 import streamlit as st
 import pandas as pd
 import components.state_manager as state
@@ -10,7 +11,8 @@ def _ensure_types(df: pd.DataFrame, type_map: dict) -> pd.DataFrame:
         if col not in df:
             continue
         if t == "Datetime":
-            df[col] = pd.to_datetime(df[col], errors="coerce")
+            if not pd.api.types.is_datetime64_any_dtype(df[col]):
+                df[col] = pd.to_datetime(df[col], errors="coerce")
         elif t == "Bool":
             df[col] = (
                 df[col]
@@ -54,28 +56,46 @@ def _clean_dataframe(df: pd.DataFrame, params: dict) -> pd.DataFrame:
     return df2
 
 
+def _next_key(base: str) -> str:
+    idx = 1
+    while state.get(f"{base}_cleaned_v{idx}") is not None:
+        idx += 1
+    return f"{base}_cleaned_v{idx}"
+
+
 def render_data_tool():
     state.init_state()
-    df_base = state.get("base_data")
-    if df_base is None or not isinstance(df_base, pd.DataFrame):
+
+    base_df = state.get("base_data")
+    if base_df is None or not isinstance(base_df, pd.DataFrame):
         with st.expander("🛠️ Data Tool"):
             st.warning("Please upload and load base data first.")
         return
-
-    df_base = ops.standardize_columns(df_base)
-    if "col_types" not in st.session_state:
-        st.session_state["col_types"] = ops.infer_column_types(df_base)
+    base_df = ops.standardize_columns(base_df)
 
     with st.expander("🛠️ Data Tool", expanded=False):
+        # -------- Data source selector --------
+        normal_keys = [e["key"] for e in state.get_dynamic_data_keys() if e["category"] == "normal"]
+        source_options = ["base_data"] + normal_keys
+        source_key = st.selectbox("Data source", source_options)
+        df_src = base_df if source_key == "base_data" else state.get(source_key)
+        if df_src is None or not isinstance(df_src, pd.DataFrame):
+            st.warning("Selected data source is empty.")
+            return
+        df_src = ops.standardize_columns(df_src)
+
+        if "col_types" not in st.session_state:
+            st.session_state["col_types"] = ops.infer_column_types(df_src)
+
         tabs = st.tabs(["Types", "Clean", "SPMF"])
 
-        # Types Tab
+        # -------- Types Tab --------
         with tabs[0]:
-            cols = df_base.columns.tolist()
+            cols = df_src.columns.tolist()
             groups = ["ID", "Numeric", "Datetime", "Bool", "Category"]
 
             if "type_sel" not in st.session_state:
-                inf = ops.infer_column_types(df_base)
+                inf = ops.infer_column_types(df_src)
                 st.session_state.type_sel = {
                     "ID": [],
                     "Numeric": [],
@@ -112,7 +132,7 @@ def render_data_tool():
             tm.update({c: "Category" for c in sel_new["Category"]})
             st.session_state["col_types"] = tm
 
-        # Clean Tab
+        # -------- Clean Tab --------
         with tabs[1]:
             tm = st.session_state["col_types"]
             drop_pe = st.checkbox("Drop pseudo-empty rows", key="drop_pe")
@@ -120,14 +140,14 @@ def render_data_tool():
             fill_type = st.checkbox("Fill missing by type", key="fill_type")
             select_cols = st.checkbox("Select columns", key="select_cols")
             keep_cols = (
-                st.multiselect("Columns to keep", df_base.columns.tolist(), default=df_base.columns.tolist())
+                st.multiselect("Columns to keep", df_src.columns.tolist(), default=df_src.columns.tolist())
                 if select_cols
-                else df_base.columns.tolist()
+                else df_src.columns.tolist()
             )
             filter_rows = st.checkbox("Filter rows", key="filter_rows")
             filter_col, filter_op, filter_val = None, None, None
             if filter_rows:
-                filter_col = st.selectbox("Filter column", df_base.columns.tolist())
+                filter_col = st.selectbox("Filter column", df_src.columns.tolist())
                 filter_op = st.selectbox("Operator", [">", ">=", "<", "<=", "==", "!="])
                 filter_val = st.text_input("Filter value")
             drop_dup = st.checkbox("Drop duplicates", key="drop_dup")
@@ -139,7 +159,8 @@ def render_data_tool():
             )
             custom_nulls = st.text_input("Custom nulls (comma)", value="") if drop_null else ""
 
-            save_key = st.text_input("Save key", "cleaned_v1")
+            default_save = _next_key(source_key if source_key != "base_data" else "base_data")
+            save_key = st.text_input("Save key", default_save)
             preview = st.button("Preview clean")
             save = st.button("Save clean")
 
@@ -161,7 +182,7 @@ def render_data_tool():
             )
 
             if preview or save:
-                cleaned = _clean_dataframe(df_base, params)
+                cleaned = _clean_dataframe(df_src, params)
                 st.dataframe(cleaned.head(10))
                 if preview:
                     st.session_state["latest_clean_df"] = cleaned
@@ -169,7 +190,6 @@ def render_data_tool():
                     state.set(save_key, cleaned)
                     state.add_dynamic_data_key(save_key, "normal")
                     st.success(f"Saved `{save_key}`")
-                if save and cleaned is not None:
                     csv_bytes = cleaned.to_csv(index=False).encode("utf-8")
                     st.download_button(
                         label="Download cleaned CSV",
@@ -178,16 +198,18 @@ def render_data_tool():
                         mime="text/csv",
                     )
 
-        # SPMF Tab
+        # -------- SPMF Tab --------
         with tabs[2]:
             dyn = state.get_dynamic_data_keys()
             normal_keys = [e["key"] for e in dyn if e["category"] == "normal"]
+            if source_key == "base_data":
+                normal_keys.insert(0, "base_data")
             if not normal_keys:
                 st.info("No cleaned data available.")
                 return
 
             base_key = st.selectbox("Base data", normal_keys)
-            df0 = state.get(base_key)
+            df0 = base_df if base_key == "base_data" else state.get(base_key)
             tm = st.session_state["col_types"]
             dt_opts = [c for c, t in tm.items() if t == "Datetime"]
             dt_col = st.selectbox("Datetime column", dt_opts)
