@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import components.state_manager as state
 from collections import Counter
 
+DEFAULT_HEIGHT = 420
 
 def render(data_key=None, settings=None):
     patterns = state.get(data_key)
@@ -18,11 +19,12 @@ def render(data_key=None, settings=None):
         st.warning("Please select at least two fields in chart configuration.")
         return
 
+    height = cfg.get("height", DEFAULT_HEIGHT)
+
     # Aggregate flows between adjacent fields
     flows = Counter()
     for pat in patterns:
         sup = pat.get("support", 0)
-        # track last seen value for each field
         fv = {fld: None for fld in fields}
         for seq in pat.get("sequence", []):
             for item in seq:
@@ -30,7 +32,6 @@ def render(data_key=None, settings=None):
                     f, v = item.split("=", 1)
                     if f in fv:
                         fv[f] = v
-        # sum support for each adjacent pair
         for i in range(len(fields) - 1):
             a = fv[fields[i]]
             b = fv[fields[i+1]]
@@ -64,7 +65,8 @@ def render(data_key=None, settings=None):
     fig.update_layout(
         title_text="Sequential Pattern Co-occurrence Sankey (sum of support)",
         font_size=12,
-        margin=dict(l=50, r=50, t=50, b=50)
+        margin=dict(l=50, r=50, t=50, b=50),
+        height=height
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -97,9 +99,17 @@ def render_config_ui(patterns, window):
         key=f"{window['id']}_sankey_fields"
     )
 
+    height = st.number_input(
+        "Height (px)",
+        min_value=200,
+        max_value=1200,
+        value=cfg.get("height", DEFAULT_HEIGHT),
+        key=f"{window['id']}_sankey_height"
+    )
+
     if st.button("Save Sankey Settings", key=f"save_sankey_{window['id']}"):
         if len(fields) < 2:
             st.error("Please select at least two fields.")
         else:
-            window["settings"] = {"fields": fields}
+            window["settings"] = {"fields": fields, "height": height}
             st.success("Settings saved.")

@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 import pandas as pd
 import components.state_manager as state
 
+DEFAULT_HEIGHT = 420
+
 def render(data_key=None, settings=None):
     patterns = state.get(data_key)
     if not isinstance(patterns, list) or not patterns:
@@ -17,7 +19,9 @@ def render(data_key=None, settings=None):
         st.warning("Please select at least two fields in chart configuration.")
         return
 
-    # 1) Expand and filter patterns: only keep patterns with ≥2 fields present
+    height = cfg.get("height", DEFAULT_HEIGHT)
+
+    # prepare data rows
     rows = []
     for pat in patterns:
         sup = pat.get("support", 0)
@@ -28,7 +32,6 @@ def render(data_key=None, settings=None):
                     f, v = item.split("=", 1)
                     if f in fv:
                         fv[f] = v
-        # Count non-null fields
         if sum(1 for v in fv.values() if v is not None) < 2:
             continue
         fv["support"] = sup
@@ -39,16 +42,10 @@ def render(data_key=None, settings=None):
         st.warning("No patterns with at least two fields present.")
         return
 
-    # 2) Fill missing placeholders
-    #df[fields] = df[fields].fillna(" ")
-
-    # 3) Aggregate support for each unique combination
     agg = df.groupby(fields, dropna=False, as_index=False).agg({"support": "sum"})
 
-    # 4) Prepare dimensions for go.Parcats
     dimensions = []
     for fld in fields:
-        # ensure missing placeholder included in category order
         categories = list(agg[fld].unique())
         dimensions.append({
             "label": fld,
@@ -57,7 +54,6 @@ def render(data_key=None, settings=None):
             "categoryarray": categories
         })
 
-    # 5) Configure line coloring by aggregated support
     line = {
         "color": agg["support"].tolist(),
         "colorscale": "Blues",
@@ -70,15 +66,18 @@ def render(data_key=None, settings=None):
         hoveron="color",
         hoverinfo="all"
     ))
-    fig.update_layout(margin=dict(l=50, r=50, t=50, b=50))
+    fig.update_layout(
+        margin=dict(l=50, r=50, t=50, b=50),
+        height=height
+    )
     st.plotly_chart(fig, use_container_width=True)
+
 
 def render_config_ui(patterns, window):
     if not isinstance(patterns, list) or not patterns:
         st.info("No patterns data for configuration.")
         return
 
-    # Discover available fields from patterns
     seen = set()
     options = []
     for pat in patterns:
@@ -91,7 +90,9 @@ def render_config_ui(patterns, window):
                         options.append(f)
     options.sort()
 
-    selected = window.get("settings", {}).get("fields", options[:2])
+    cfg = window.get("settings", {}) or {}
+    selected = cfg.get("fields", options[:2])
+
     fields = st.multiselect(
         "Select fields to include",
         options,
@@ -99,9 +100,20 @@ def render_config_ui(patterns, window):
         key=f"{window['id']}_parallel_fields"
     )
 
+    height = st.number_input(
+        "Height (px)",
+        min_value=200,
+        max_value=1200,
+        value=cfg.get("height", DEFAULT_HEIGHT),
+        key=f"{window['id']}_parallel_height"
+    )
+
     if st.button("Save Settings", key=f"save_parallel_{window['id']}"):
         if len(fields) < 2:
             st.error("Please select at least two fields.")
         else:
-            window["settings"] = {"fields": fields}
+            new_cfg = cfg.copy()
+            new_cfg["fields"] = fields
+            new_cfg["height"] = height
+            window["settings"] = new_cfg
             st.success("Settings saved.")

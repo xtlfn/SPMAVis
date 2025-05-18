@@ -19,7 +19,7 @@ CHARTS = {
     },
     "chart_table": {
         "renderer": chart_table.render,
-        "config_ui": None,
+        "config_ui": chart_table.render_config_ui,
         "fixed_sources": ["base_data"],
         "accepts_custom_data": True
     },
