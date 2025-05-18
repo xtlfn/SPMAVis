@@ -31,7 +31,7 @@ def _ui_param_input(param_name: str):
     if param_name == "min_conf":
         return st.slider("min_conf", 0.0, 1.0, 0.8, 0.01)
     if param_name == "allowed_items":
-        st.caption("allowed_items – IDs of items allowed as rule consequent")
+        st.caption("allowed_items - IDs of items allowed as rule consequent")
         dict_df = state.get(
             st.session_state["algo_selected_file"].replace("_file", "_dict")
         )

@@ -1,13 +1,13 @@
 from components.dashboard import (
+    chart_seq_heatmap,
+    chart_seq_list,
+    chart_seq_parallel,
+    chart_seq_sankey,
+    chart_rule_network,
+    chart_rule_scatter,
     chart_table,
     chart_bar,
     chart_map,
-    chart_spmf,
-    chart_spmf_sankey,
-    chart_spmf_heatmap,
-    chart_spmf_parallel,
-    chart_spmf_sunburst,
-    chart_spmf_treemap
 )
 
 CHARTS = {
@@ -29,41 +29,51 @@ CHARTS = {
         "fixed_sources": ["base_data"],
         "accepts_custom_data": True
     },
-    "chart_spmf": {
-        "renderer": chart_spmf.render,
-        "config_ui": chart_spmf.render_config_ui,
+
+    # association rule mining charts
+    "chart_rule_scatter": {
+        "renderer": chart_rule_scatter.render,
+        "config_ui": chart_rule_scatter.render_config_ui,
+        "pattern_cat": "rule",
         "fixed_sources": [],
-        "accepts_custom_data": True
+        "accepts_custom_data": True,
     },
-    "chart_spmf_sankey": {
-        "renderer": chart_spmf_sankey.render,
-        "config_ui": chart_spmf_sankey.render_config_ui,
+    "chart_rule_network": {
+        "renderer": chart_rule_network.render,
+        "config_ui": chart_rule_network.render_config_ui,
+        "pattern_cat": "rule",
         "fixed_sources": [],
-        "accepts_custom_data": True
+        "accepts_custom_data": True,
     },
-    "chart_spmf_heatmap": {
-        "renderer": chart_spmf_heatmap.render,
-        "config_ui": chart_spmf_heatmap.render_config_ui,
+
+    # Sequential Pattern Mining Charts
+    "chart_seq_list": {
+        "renderer": chart_seq_list.render,
+        "config_ui": chart_seq_list.render_config_ui,
+        "pattern_cat": "seq",
         "fixed_sources": [],
-        "accepts_custom_data": True
+        "accepts_custom_data": True,
     },
-    "chart_spmf_parallel": {
-        "renderer": chart_spmf_parallel.render,
-        "config_ui": chart_spmf_parallel.render_config_ui,
+    "chart_seq_sankey": {
+        "renderer": chart_seq_sankey.render,
+        "config_ui": chart_seq_sankey.render_config_ui,
+        "pattern_cat": "seq",
         "fixed_sources": [],
-        "accepts_custom_data": True
+        "accepts_custom_data": True,
     },
-    "chart_spmf_sunburst": {
-        "renderer": chart_spmf_sunburst.render,
-        "config_ui": chart_spmf_sunburst.render_config_ui,
+    "chart_seq_heatmap": {
+        "renderer": chart_seq_heatmap.render,
+        "config_ui": chart_seq_heatmap.render_config_ui,
+        "pattern_cat": "seq",
         "fixed_sources": [],
-        "accepts_custom_data": True
+        "accepts_custom_data": True,
     },
-    "chart_spmf_treemap": {
-        "renderer": chart_spmf_treemap.render,
-        "config_ui": chart_spmf_treemap.render_config_ui,
+    "chart_seq_parallel": {
+        "renderer": chart_seq_parallel.render,
+        "config_ui": chart_seq_parallel.render_config_ui,
+        "pattern_cat": "seq",
         "fixed_sources": [],
-        "accepts_custom_data": True
+        "accepts_custom_data": True,
     },
 }
 
