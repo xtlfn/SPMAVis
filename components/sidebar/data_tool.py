@@ -1,5 +1,6 @@
 # components/sidebar/data_tool.py
 # components/sidebar/data_tool.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -85,7 +86,8 @@ def render_data_tool():
     base_df = ops.standardize_columns(base_df)
 
     with st.expander("🛠️ Data Tool", expanded=False):
-        normal_keys = [e["key"] for e in state.get_dynamic_data_keys() if e["category"] == "normal"]
+        dyn = state.get_dynamic_data_keys()
+        normal_keys = [e["key"] for e in dyn if e["category"] == "normal"]
         source_key = st.selectbox("Data source", ["base_data"] + normal_keys)
         df_src = base_df if source_key == "base_data" else state.get(source_key)
         if df_src is None or not isinstance(df_src, pd.DataFrame):
@@ -111,7 +113,9 @@ def render_data_tool():
                     "Datetime": [c for c, t in inf.items() if t == "Datetime"],
                     "Bool": [c for c, t in inf.items() if t == "Bool"],
                     "Category": [
-                        c for c in cols if c not in inf or inf.get(c) is None or inf[c] not in {"Datetime", "Bool"}
+                        c
+                        for c in cols
+                        if c not in inf or inf.get(c) not in {"Datetime", "Bool"}
                     ],
                 }
 
@@ -125,7 +129,9 @@ def render_data_tool():
                 current_val = st.session_state.get(f"{g}_cols", sel_prev[g])
                 options = sorted(set(cols) - assigned | set(current_val))
                 defaults = [c for c in current_val if c in options]
-                sel_new[g] = st.multiselect(f"{g} columns", options, defaults, key=f"{g}_cols")
+                sel_new[g] = st.multiselect(
+                    f"{g} columns", options, defaults, key=f"{g}_cols"
+                )
                 assigned.update(sel_new[g])
 
             st.session_state.type_sel = sel_new
@@ -146,7 +152,9 @@ def render_data_tool():
             fill_type = st.checkbox("Fill missing by type", key="fill_type")
             select_cols = st.checkbox("Select columns", key="select_cols")
             keep_cols = (
-                st.multiselect("Columns to keep", df_src.columns.tolist(), default=df_src.columns.tolist())
+                st.multiselect(
+                    "Columns to keep", df_src.columns.tolist(), default=df_src.columns.tolist()
+                )
                 if select_cols
                 else df_src.columns.tolist()
             )
@@ -159,7 +167,9 @@ def render_data_tool():
             drop_dup = st.checkbox("Drop duplicates", key="drop_dup")
             drop_null = st.checkbox("Drop null rows", key="drop_null")
             null_types = (
-                st.multiselect("Null value types", ["NaN", "UNKNOWN"], default=["NaN"]) if drop_null else []
+                st.multiselect("Null value types", ["NaN", "UNKNOWN"], default=["NaN"])
+                if drop_null
+                else []
             )
             custom_nulls = st.text_input("Custom nulls (comma)", value="") if drop_null else ""
 
@@ -171,7 +181,9 @@ def render_data_tool():
                     st.session_state.rb_rules = []
 
                 if st.button("+ Add Rule", key="rb_add"):
-                    st.session_state.rb_rules.append({"col": None, "op": ">", "val": "", "label": ""})
+                    st.session_state.rb_rules.append(
+                        {"col": None, "op": ">", "val": "", "label": ""}
+                    )
 
                 for i, r in enumerate(st.session_state.rb_rules):
                     with st.container():
@@ -182,23 +194,39 @@ def render_data_tool():
                             index=df_src.columns.get_loc(r["col"]) if r["col"] in df_src.columns else 0,
                             key=f"rb_col_{i}",
                         )
-                        r["op"] = c2.selectbox("Op", [">", ">=", "<", "<=", "==", "!=", "contains"], key=f"rb_op_{i}")
+                        r["op"] = c2.selectbox(
+                            "Op", [">", ">=", "<", "<=", "==", "!=", "contains"], key=f"rb_op_{i}"
+                        )
 
                         if pd.api.types.is_numeric_dtype(df_src[r["col"]]):
-                            r["val"] = c3.number_input("Value", value=float(r["val"] or 0), key=f"rb_val_{i}")
+                            r["val"] = c3.number_input(
+                                "Value", value=float(r["val"] or 0), key=f"rb_val_{i}"
+                            )
                         else:
-                            r["val"] = c3.text_input("Value", value=r["val"], key=f"rb_val_{i}")
+                            r["val"] = c3.text_input(
+                                "Value", value=r["val"], key=f"rb_val_{i}"
+                            )
 
-                        r["label"] = c4.text_input("Label", value=r["label"], key=f"rb_lab_{i}")
+                        r["label"] = c4.text_input(
+                            "Label", value=r["label"], key=f"rb_lab_{i}"
+                        )
                         if c5.button("✖", key=f"rb_del_{i}"):
                             st.session_state.rb_rules.pop(i)
-                            st.experimental_rerun()
+                            st.rerun()
                     st.markdown("---")
 
-                default_label = st.text_input("Default label if none matched", value="minor", key="rb_default")
-                new_col_name = st.text_input("New column name", value="severity", key="rb_newname")
+                default_label = st.text_input(
+                    "Default label if none matched", value="minor", key="rb_default"
+                )
+                new_col_name = st.text_input(
+                    "New column name", value="severity", key="rb_newname"
+                )
 
-                rb_cfg = {"new_name": new_col_name, "default": default_label, "rules": st.session_state.rb_rules}
+                rb_cfg = {
+                    "new_name": new_col_name,
+                    "default": default_label,
+                    "rules": st.session_state.rb_rules,
+                }
 
                 if st.button("Preview rule result", key="rb_prev"):
                     def _apply(df, cfg):
@@ -209,14 +237,19 @@ def render_data_tool():
                                 continue
                             c, op, raw, lab = rule["col"], rule["op"], rule["val"], rule["label"]
                             if op == "contains":
-                                mask = df[c].astype(str).str.contains(str(raw), case=False, na=False)
+                                mask = df[c].astype(str).str.contains(
+                                    str(raw), case=False, na=False
+                                )
                             else:
                                 val = _cast_value(df[c], raw)
                                 mask = df.eval(f'`{c}` {op} @val')
                             df.loc[mask, cfg["new_name"]] = lab
                         return df
 
-                    st.dataframe(_apply(df_src, rb_cfg)[[rb_cfg["new_name"]]].head(), use_container_width=True)
+                    st.dataframe(
+                        _apply(df_src, rb_cfg)[[rb_cfg["new_name"]]].head(),
+                        use_container_width=True,
+                    )
 
             default_save = _next_key(source_key if source_key != "base_data" else "base_data")
             save_key = st.text_input("Save key", default_save)
@@ -251,7 +284,9 @@ def render_data_tool():
                         continue
                     col, op, raw_val, lab = r["col"], r["op"], r["val"], r["label"]
                     if op == "contains":
-                        mask = df[col].astype(str).str.contains(str(raw_val), case=False, na=False)
+                        mask = df[col].astype(str).str.contains(
+                            str(raw_val), case=False, na=False
+                        )
                     else:
                         val = _cast_value(df[col], raw_val)
                         mask = df.eval(f'`{col}` {op} @val')
@@ -290,7 +325,9 @@ def render_data_tool():
             df0 = base_df if base_key == "base_data" else state.get(base_key)
             tm = st.session_state["col_types"]
 
-            pattern_mode = st.radio("Pattern type", ["Sequence", "Association"], horizontal=True, key="spmf_mode")
+            pattern_mode = st.radio(
+                "Pattern type", ["Sequence", "Association"], horizontal=True, key="spmf_mode"
+            )
 
             if pattern_mode == "Sequence":
                 dt_opts = [c for c, t in tm.items() if t == "Datetime"]
@@ -298,12 +335,18 @@ def render_data_tool():
                 fmt = st.text_input("Datetime format", "%m/%d/%Y %I:%M:%S %p")
                 grp = st.text_input("Group by column", "zip_code")
             else:
-                dt_col = fmt = grp = None  # placeholders for later branch logic
+                dt_col = fmt = grp = None
 
-            fields = st.multiselect("Fields", df0.columns.tolist())
+            # pick antecedent fields and one consequent
+            ante = st.multiselect(
+                "Antecedent fields", df0.columns.tolist(), key="spmf_ante_fields"
+            )
+            cons = st.selectbox(
+                "Consequent field", df0.columns.tolist(), index=df0.columns.get_loc("severity") if "severity" in df0.columns else 0, key="spmf_consequent"
+            )
 
             bins_conf = {}
-            for c in fields:
+            for c in ante:
                 if tm.get(c) == "Numeric":
                     raw_bins = st.text_input(f"{c} bins", "0,1,2,10", key=f"{c}_bins")
                     raw_labels = st.text_input(f"{c} labels", "V0,V1,V2", key=f"{c}_labels")
@@ -325,22 +368,18 @@ def render_data_tool():
                 d1 = ops.parse_time_for_spmf(df0, dt_col, fmt)
                 d1["groupid"] = d1[grp].astype(str) + "_" + d1["dategroup"]
                 d2 = ops.discretize_fields(d1, bins_conf) if bins_conf else d1
-                d2 = d2.dropna(subset=fields)
-                dict_df, _ = ops.build_spmf_dictionary(d2, fields)
-                path = ops.write_spmf_file(d2, fields, _)
+                d2 = d2.dropna(subset=ante)
+                dict_df, _ = ops.build_spmf_dictionary(d2, ante)
+                path = ops.write_spmf_file(d2, ante, _)
                 sp_df = ops.spmf_to_dataframe(path)
                 return dict_df, path, sp_df
 
             def _to_transaction_spmf():
-                # ensure severity exists
-                if "severity" not in df0.columns:
-                    st.error("Column 'severity' is required for Association mode.")
-                    return None, None, None
-                item_cols = fields + ["severity"]
                 d1 = ops.discretize_fields(df0, bins_conf) if bins_conf else df0
-                d1 = d1.dropna(subset=item_cols)
-                dict_df, _ = ops.build_spmf_dictionary(d1, item_cols)
-                path = ops.write_transaction_file(d1, item_cols, _)
+                needed = list(dict.fromkeys(ante + [cons]))
+                d1 = d1.dropna(subset=needed)
+                dict_df, item2id = ops.build_spmf_dictionary(d1, needed)
+                path = ops.write_transaction_file(d1, needed, item2id)
                 trx_df = pd.read_csv(path, header=None, names=["Transaction"])
                 return dict_df, path, trx_df
 
