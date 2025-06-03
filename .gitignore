@@ -30,3 +30,5 @@ Thumbs.db
 
 # 大型数据集或上传文件目录
 static/uploads/
+
+*.geojson
